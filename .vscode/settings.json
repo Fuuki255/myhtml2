@@ -1,0 +1,11 @@
+{
+    "files.associations": {
+        "*.rmd": "markdown",
+        "myhtml.h": "c",
+        "myhtml_methods.h": "c",
+        "myhtml_parser.h": "c",
+        "myhtml_writer.h": "c",
+        "myhtml_defines.h": "c",
+        "myhtml_stream.h": "c"
+    }
+}
