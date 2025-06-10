@@ -704,4 +704,34 @@ HtmlObject* HtmlCopyObject(HtmlObject* object) {
 }
 
 
+
+
+
+// Count
+
+size_t HtmlCountObjectChildren(HtmlObject* object) {
+	HtmlHandleNullError(object, 0);
+
+	size_t count = 0;
+	HtmlObject* child;
+	HtmlForeachObjectChildren(object, child) {
+		count++;
+	}
+	return count;
+}
+
+size_t HtmlCountObjectAttributes(HtmlObject* object) {
+	HtmlHandleNullError(object, 0);
+
+	size_t count = 0;
+	const char* attrName, *attrValue;
+	HtmlForeachObjectAttributes(object, attrName, attrValue) {
+		count++;
+	}
+	return count;
+}
+
+
+
+
 #endif // _MYHTML_H_ //
