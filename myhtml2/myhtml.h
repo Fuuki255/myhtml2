@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <stdarg.h>
 
 
 // Enums //
@@ -17,6 +18,10 @@ typedef enum HtmlCode {
 	HTML_OK,
 	HTML_OUT_OF_MEMORY,
 	HTML_NULL_POINTER,
+	HTML_STREAM_NOT_WRITEABLE,
+	HTML_STREAM_NOT_READABLE,
+	HTML_STREAM_NOT_SEEKABLE,
+	HTML_ITEM_NOT_FOUND,
 } HtmlCode;
 
 
@@ -52,17 +57,39 @@ typedef enum HtmlObjectType {
 
 // Pre-Defines //
 
-typedef int (*HtmlCallbackGetchar)(void* data);
-typedef size_t (*HtmlCallbackRead)(void* buf, size_t n, size_t size, void* data);
+typedef int (*HtmlCallbackGetchar)(void* streamData);
+typedef size_t (*HtmlCallbackRead)(void* buf, size_t n, size_t size, void* streamData);
 
-typedef int (*HtmlCallbackPutchar)(void* data, int c);
-typedef size_t (*HtmlCallbackWrite)(void* buf, size_t n, size_t size, void* data);
+typedef int (*HtmlCallbackPutchar)(void* streamData, int c);
+typedef size_t (*HtmlCallbackWrite)(void* buf, size_t n, size_t size, void* streamData);
 
-typedef int (*HtmlCallbackSeek)(void* data, int pos, long seek);
+typedef int (*HtmlCallbackSeek)(void* streamData, long move, int seek);
 
 
 typedef struct HtmlAttribute HtmlAttribute;
 typedef struct HtmlObject HtmlObject;
+
+typedef struct HtmlAttribute {
+	char* name;
+	char* value;
+	
+	HtmlAttribute* prev, *next;
+} HtmlAttribute;
+
+
+typedef struct HtmlObject {
+	HtmlObjectType type;
+	
+	char* name;
+	char* innerText;
+	char* afterText;
+	
+	HtmlObject* firstChild, *lastChild;
+	HtmlAttribute* firstAttribute, *lastAttribute;
+	
+	HtmlObject* parent;
+	HtmlObject* prev, *next;
+} HtmlObject;
 
 
 
@@ -90,34 +117,52 @@ typedef struct HtmlObject HtmlObject;
 
 
 #define HtmlHandleNullError(parameter, retValue) \
-	if (parameter != NULL) return retValue;
+	if (parameter == NULL) return retValue;
 
 #define HtmlHandleOutOfMemoryError(pointer, retValue) \
-    if (pointer != NULL) return retValue;
+    if (pointer == NULL) return retValue;
 
 
 #else
 #define HtmlHandleError(check, retValue, ...) \
 	if (check) {\
-		fprintf(stderr, ...);\
+		fprintf(stderr, __VA_ARGS__);\
 		return retValue;\
 	}
 
 
 #define HtmlHandleNullError(parameter, retValue) \
-	if (parameter != NULL) {\
+	if (parameter == NULL) {\
 		fprintf(stderr, "%s: Parameter '%s' couldn't be NULL!\n", __func__, parameter);\
 		return retValue;\
 	}
 
 
 #define HtmlHandleOutOfMemoryError(pointer, retValue) \
-    if (pointer != NULL) {\
+    if (pointer == NULL) {\
         fprintf(stderr, "%s: Out of memory!\n", __func__);\
         return retValue;\
     }
 
 #endif
+
+
+
+bool HtmlLibIsIntegerIn(int compareValue, ...) {
+	va_list args;
+	va_start(args, compareValue);
+	
+	int value;
+	while ((value = va_arg(args, int)) != -1) {
+		if (value == compareValue) {
+			va_end(args);
+			return true;
+		}
+	}
+	
+	va_end(args);
+	return false;
+}
 
 
 
@@ -264,29 +309,6 @@ HtmlStream HtmlCreateStreamString(size_t blockSize) {
 
 // HtmlObject //
 
-typedef struct HtmlAttribute {
-	char* name;
-	char* value;
-	
-	HtmlAttribute* prev, *next;
-} HtmlAttribute;
-
-
-typedef struct HtmlObject {
-	HtmlObjectType type;
-	
-	char* name;
-	char* innerText;
-	char* afterText;
-	
-	HtmlObject* firstChild, *lastChild;
-	HtmlAttribute* firstAttribute, *lastAttribute;
-	
-	HtmlObject* owner;
-	HtmlObject* prev, *next;
-} HtmlObject;
-
-
 
 // Create
 
@@ -358,8 +380,8 @@ void HtmlDestroyObject(HtmlObject* object);
 void HtmlClearObjectAttributes(HtmlObject* object) {
     const char* attrName, *attrValue;
     HtmlForeachObjectAttributes(object, attrName, attrValue) {
-        HtmlDestroyPointer((void*)attrName);
-        HtmlDestroyPointer((void*)attrValue);
+        HtmlDestroyPointer(attrName);
+        HtmlDestroyPointer(attrValue);
         
         free(objectAttrIter.now);
     }
@@ -389,7 +411,7 @@ void HtmlDestroyObject(HtmlObject* object) {
 
 
     // Clear relationship
-    if (object->owner) {
+    if (object->parent) {
 		if (object->next) {
 			object->next->prev = object->prev;
 			object->next = NULL;
@@ -398,13 +420,13 @@ void HtmlDestroyObject(HtmlObject* object) {
 			object->prev->next = object->next;
 			object->prev = NULL;
 		}
-		if (object->owner->firstChild == object) {
-			object->owner->firstChild = object->next;
+		if (object->parent->firstChild == object) {
+			object->parent->firstChild = object->next;
 		}
-		if (object->owner->lastChild == object) {
-			object->owner->lastChild = object->prev;
+		if (object->parent->lastChild == object) {
+			object->parent->lastChild = object->prev;
 		}
-		object->owner = NULL;
+		object->parent = NULL;
 	}
 
     free(object);
@@ -419,7 +441,7 @@ HtmlObject* HtmlAddObjectChild(HtmlObject* parent, HtmlObject* child) {
     HtmlHandleNullError(parent, NULL);
     HtmlHandleNullError(child, NULL);
 
-    child->owner = parent;
+    child->parent = parent;
     child->prev = parent->lastChild;
     child->next = NULL;
 
@@ -495,7 +517,191 @@ HtmlCode HtmlSetObjectAttribute(HtmlObject* object, const char* attrName, const 
 
 
 
+// Get
 
+const char* HtmlGetObjectName(HtmlObject* object) {
+	HtmlHandleNullError(object, NULL);
+	return object->name ? object->name : "";
+}
+
+const char* HtmlGetObjectInnerText(HtmlObject* object) {
+	HtmlHandleNullError(object, NULL);
+	return object->innerText ? object->innerText : "";
+}
+
+HtmlCode HtmlGetText(HtmlObject* object, HtmlStream* stream) {
+	// Validation Checks //
+
+	// Check parameters
+	HtmlHandleNullError(object, HTML_NULL_POINTER);
+	HtmlHandleNullError(stream, HTML_NULL_POINTER);
+
+	// Check a valid object type
+	if (HtmlLibIsIntegerIn(object->type, HTML_TYPE_DOCUMENT, HTML_TYPE_TAG, -1) == false) {
+		return HTML_OK; // No text to write for not text-containing types
+	}
+
+	// Check if stream is writeable
+	HtmlHandleError(stream->write == NULL, HTML_STREAM_NOT_WRITEABLE,
+		"%s: HtmlStream is not writeable, please setup the write callback function!", __func__);
+	
+
+	// Write text to stream //
+
+	// Write innerText
+	if (object->innerText) {
+		size_t len = strlen(object->innerText);
+		if (stream->write(object->innerText, len, 1, stream->data) != len) {
+			return HTML_OUT_OF_MEMORY;
+		}
+	}
+
+	// Write children's text
+	HtmlObject* child;
+	HtmlForeachObjectChildren(object, child) {
+		// Skip writing afterText for COMMENT, DOCTYPE, and SCRIPT types
+		if (HtmlLibIsIntegerIn(child->type, HTML_TYPE_COMMENT, HTML_TYPE_DOCTYPE, HTML_TYPE_SCRIPT, -1)) {
+			continue;
+		}
+
+		// Special case (br or hr)
+		if (strcmp(child->name, "br") == 0 || strcmp(child->name, "hr") == 0) {
+			// Write a newline for <br> and <hr> tags
+			if (stream->write("\n", 1, 1, stream->data) != 1) {
+				return HTML_OUT_OF_MEMORY;
+			}
+			continue;
+		}
+
+
+		// Write child's text unless its type SINGLE
+		if (child->type != HTML_TYPE_SINGLE) {
+			HtmlCode code = HtmlGetText(child, stream);
+			if (code != HTML_OK) {
+				return code;
+			}
+		}
+
+		// Write child's afterText to stream
+		if (child->afterText) {
+			size_t len = strlen(child->afterText);
+			if (stream->write(child->afterText, len, 1, stream->data) != len) {
+				return HTML_OUT_OF_MEMORY;
+			}
+		}
+	}
+	return HTML_OK;
+}
+
+const char* HtmlGetObjectAfterText(HtmlObject* object) {
+	HtmlHandleNullError(object, NULL);
+	return object->afterText ? object->afterText : "";
+}
+
+const char* HtmlGetObjectAttributeValue(HtmlObject* object, const char* attrName) {
+	HtmlHandleNullError(object, NULL);
+	HtmlHandleNullError(attrName, NULL);
+
+	// Search for the attribute
+	const char* _attrName, *_attrValue;
+	HtmlForeachObjectAttributes(object, _attrName, _attrValue) {
+		if (strcmp(attrName, _attrName) == 0) {
+			return _attrValue;
+		}
+	}
+	return NULL; // Attribute not found
+}
+
+HtmlObject* HtmlGetObjectFirstChild(HtmlObject* object) {
+	HtmlHandleNullError(object, NULL);
+	return object->firstChild;
+}
+
+HtmlObject* HtmlGetObjectLastChild(HtmlObject* object) {
+	HtmlHandleNullError(object, NULL);
+	return object->lastChild;
+}
+
+HtmlObject* HtmlGetObjectParent(HtmlObject* object) {
+	HtmlHandleNullError(object, NULL);
+	return object->parent;
+}
+
+
+
+// Remove
+
+HtmlCode HtmlRemoveObjectAttribute(HtmlObject* object, const char* attrName) {
+	HtmlHandleNullError(object, HTML_NULL_POINTER);
+	HtmlHandleNullError(attrName, HTML_NULL_POINTER);
+
+	// Search for the attribute
+	const char* _attrName, *_attrValue;
+	HtmlForeachObjectAttributes(object, _attrName, _attrValue) {
+		if (strcmp(attrName, _attrName) == 0) {
+			// Remove relationships
+			if (objectAttrIter.prev) {
+				objectAttrIter.prev->next = objectAttrIter.now->next;
+			}
+			if (objectAttrIter.next) {
+				objectAttrIter.next->prev = objectAttrIter.now->prev;
+			}
+			if (object->firstAttribute == objectAttrIter.now) {
+				object->firstAttribute = objectAttrIter.next;
+			}
+			if (object->lastAttribute == objectAttrIter.now) {
+				object->lastAttribute = objectAttrIter.prev;
+			}
+
+			// Free the attribute memory
+			HtmlDestroyPointer(_attrName);
+			HtmlDestroyPointer(_attrValue);
+			free(objectAttrIter.now);
+			return HTML_OK;
+		}
+	}
+	return HTML_ITEM_NOT_FOUND;
+}
+
+
+
+
+
+// Copy
+
+HtmlObject* HtmlCopyObject(HtmlObject* object) {
+	HtmlHandleNullError(object, NULL);
+
+	// Create a new object with the same type and name
+	HtmlObject* copy = (HtmlObject*)calloc(1, sizeof(HtmlObject));
+	HtmlHandleOutOfMemoryError(copy, NULL);
+
+	// Copy innerText and afterText
+	HtmlSetText(copy->innerText, object->innerText);
+	HtmlSetText(copy->afterText, object->afterText);
+
+	// Copy attributes
+	const char* attrName, *attrValue;
+	HtmlForeachObjectAttributes(object, attrName, attrValue) {
+		if (HtmlSetObjectAttribute(copy, attrName, attrValue) != HTML_OK) {
+			HtmlDestroyObject(copy);
+			return NULL; // Out of memory error
+		}
+	}
+
+	// Copy children
+	HtmlObject* child;
+	HtmlForeachObjectChildren(object, child) {
+		HtmlObject* childCopy = HtmlCopyObject(child);
+		if (childCopy == NULL) {
+			HtmlDestroyObject(copy);
+			return NULL; // Out of memory error
+		}
+		HtmlAddObjectChild(copy, childCopy);
+	}
+
+	return copy;
+}
 
 
 #endif // _MYHTML_H_ //
