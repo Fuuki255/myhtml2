@@ -1,201 +1,183 @@
 # My HTML Parser (myhtml)
 
-| Item          | Value         |
-|:----------    |:--------------|
-| Langauge      | C Program     |
-| Version       | 1.0.0         |
-| Programmer    | Fuuki-255     |
-
+| Item       | Value     |
+| :--------- | :-------- |
+| Langauge   | C Program |
+| Version    | 1.0.0     |
+| Programmer | Fuuki-255 |
 
 ## Types
 
-**HTML_Code**
+**HtmlCode**
 
 ```c
-typedef enum HTML_Code {
-    HTML_OK,
-    HTML_OUT_OF_MEMORY,
-} HTML_Code;
+typedef enum HtmlCode {
+    HtmlOK,
+    HtmlOUT_OF_MEMORY,
+} HtmlCode;
 ```
 
-
-**HTML_ObjectFlag**
+**HtmlObjectFlag**
 
 ```c
-typedef enum HTML_ObjectFlag {
-	HTML_ID_NONE,
-	HTML_ID_SINGLE,
-	HTML_ID_SCRIPT,
-	HTML_ID_TAG,
-	HTML_ID_DOCUMENT,
-	HTML_ID_COMMENT,
-	HTML_ID_DOCTYPE,
-	HTML_ID_XML,
+typedef enum HtmlObjectFlag {
+	HtmlID_NONE,
+	HtmlID_SINGLE,
+	HtmlID_SCRIPT,
+	HtmlID_TAG,
+	HtmlID_DOCUMENT,
+	HtmlID_COMMENT,
+	HtmlID_DOCTYPE,
+	HtmlID_XML,
 
-	HTML_HAS_NAME = 0x10,
-	HTML_HAS_ATTR = 0x20,
-	HTML_HAS_TEXT = 0x40,
-	HTML_HAS_CHILD = 0x80,
-} HTML_ObjectFlag;
+	HtmlHAS_NAME = 0x10,
+	HtmlHAS_ATTR = 0x20,
+	HtmlHAS_TEXT = 0x40,
+	HtmlHAS_CHILD = 0x80,
+} HtmlObjectFlag;
 ```
 
-
-**HTML_ObjectType**
+**HtmlObjectType**
 
 ```c
-typedef enum HTML_ObjectType {
-	HTML_NONE,
-	HTML_OBJTYPE_SINGLE = HTML_ID_SINGLE | HTML_HAS_NAME | HTML_HAS_ATTR,
-	HTML_OBJTYPE_SCRIPT = HTML_ID_SCRIPT | HTML_HAS_NAME | HTML_HAS_ATTR | HTML_HAS_TEXT,
-	HTML_OBJTYPE_TAG = HTML_ID_TAG | HTML_HAS_NAME | HTML_HAS_ATTR | HTML_HAS_TEXT | HTML_HAS_CHILD,
-	HTML_OBJTYPE_DOCUMENT = HTML_ID_DOCUMENT | HTML_HAS_TEXT,
-	HTML_OBJTYPE_COMMENT = HTML_ID_COMMENT | HTML_HAS_TEXT,
-	HTML_OBJTYPE_DOCTYPE = HTML_ID_DOCTYPE,
-	HTML_OBJTYPE_XML = HTML_ID_XML,
-} HTML_ObjectType;
+typedef enum HtmlObjectType {
+	HtmlNONE,
+	HtmlTYPE_SINGLE = HtmlID_SINGLE | HtmlHAS_NAME | HtmlHAS_ATTR,
+	HtmlTYPE_SCRIPT = HtmlID_SCRIPT | HtmlHAS_NAME | HtmlHAS_ATTR | HtmlHAS_TEXT,
+	HtmlTYPE_TAG = HtmlID_TAG | HtmlHAS_NAME | HtmlHAS_ATTR | HtmlHAS_TEXT | HtmlHAS_CHILD,
+	HtmlTYPE_DOCUMENT = HtmlID_DOCUMENT | HtmlHAS_TEXT,
+	HtmlTYPE_COMMENT = HtmlID_COMMENT | HtmlHAS_TEXT,
+	HtmlTYPE_DOCTYPE = HtmlID_DOCTYPE,
+} HtmlObjectType;
 ```
 
-**HTML_Object**
+**HtmlObject**
 
 ```c
-typedef struct HTML_Object {
-    HTML_ObjectType type;
+typedef struct HtmlObject {
+    HtmlObjectType type;
 
     char* name;
-    char* text;
-    char* interval;
+    char* innerText;
+    char* afterText;
 
-    HTML_Object* firstChild, *lastChild;
-    HTML_Attribute* firstAttribute, *lastAttribute;
+    HtmlObject* firstChild, *lastChild;
+    HtmlAttribute* firstAttribute, *lastAttribute;
 
-    HTML_Object* owner;
-    HTML_Object* front, *back;
-} HTML_Object;
+    HtmlObject* owner;
+    HtmlObject* prev, *next;
+} HtmlObject;
 ```
 
-**HTML_Attribute**
+**HtmlAttribute**
 
 ```c
 // Object attribute inside, not providing edit to user
-typedef struct HTML_Attribute {
+typedef struct HtmlAttribute {
     char* name;
     char* value;
-    HTML_Attribute* front, *back;
-} HTML_Attribute;
+    HtmlAttribute* front, *back;
+} HtmlAttribute;
 ```
 
-
-**HTML_Stream**
+**HtmlStream**
 
 ```c
-typedef struct HTML_Stream {
+typedef struct HtmlStream {
     // ...
-} HTML_Stream;
+} HtmlStream;
 ```
-
-
 
 ## Methods (methods.h)
 
-**HTML_Create<type>()**
+**HtmlCreate`<type>`()**
 
-- HTML_Object* HTML_CreateDocument()
+- HtmlObject* HtmlCreateDocument()
+- HtmlObject* HtmlCreateTag(const char* name, const char* text)
+- HtmlObject* HtmlCreateSingle(const char* name)
+- HtmlObject* HtmlCreateScript()
+- HtmlObject* HtmlCreateStyle()
 
-- HTML_Object* HTML_CreateTag(const char* name, const char* text)
+**HtmlDestroy`<type>`()**
 
-- HTML_Object* HTML_CreateSingle(const char* name)
+- void HtmlDestroyObject(HtmlObject* object)
+- void HtmlClearChildren(HtmlObject* object)
 
-- HTML_Object* HTML_CreateScript()
+**HtmlAddObject`<item>`()**
 
-- HTML_Object* HTML_CreateStyle()
+- HtmlObject* HtmlAddObjectChild(HtmlObject* parent, HtmlObject* child)
 
+**HtmlSetObject`<item>`()**
 
-**HTML_Destroy<type>()**
+- HtmlCode HtmlSetObjectText(HtmlObject* object, const char* text)
+- HtmlCode HtmlSetObjectAttribute(HtmlObject* object, const char* attrName, const char* attrValue)
 
-- void HTML_DestroyObject(HTML_Object* object)
+**HtmlGetObject`<item>`()**
 
-
-**HTML_AddObject<item>()**
-
-- HTML_Object* HTML_AddObjectChild(HTML_Object* parent, HTML_Object* child)
-
-
-**HTML_SetObject<item>()**
-
-- HTML_Code HTML_SetObjectText(HTML_Object* object, const char* text)
-
-- HTML_Code HTML_SetObjectAttribute(HTML_Object* object, const char* attrName, const char* attrValue)
-
-
-**HTML_GetObject<item>()**
-
-- const char* HTML_GetObjectName(HTML_Object* object)
+- const char* HtmlGetObjectName(HtmlObject* object)
 
 // Return text by only this object, better not edit its return
-- const char* HTML_GetObjectString(HTML_Object* object)
+
+- const char* HtmlGetObjectString(HtmlObject* object)
 
 // Write object's text within its children
-- HTML_Code HTML_GetObjectText(HTML_Object* object, HTML_Stream* stringStream)
 
-- const char* HTML_GetObjectInterval(HTML_Object* object)
+- HtmlCode HtmlGetObjectText(HtmlObject* object, HtmlStream* stringStream)
+- const char* HtmlGetObjectInterval(HtmlObject* object)
+- const char* HtmlGetObjectAttributeValue(HtmlObject* object, const char* attrName)
+- HtmlObject* HtmlGetObjectFirstChild(HtmlObject* object)
+- HtmlObject* HtmlGetObjectLastChild(HtmlObject* object)
+- HtmlObject* HtmlGetObjectParent(HtmlObject* object)
 
-- const char* HTML_GetObjectAttributeValue(HTML_Object* object, const char* attrName)
+**HtmlRemoveObject`<item>`()**
 
-- HTML_Object* HTML_GetObjectFirstChild(HTML_Object* object)
-
-- HTML_Object* HTML_GetObjectLastChild(HTML_Object* object)
-
-- HTML_Object* HTML_GetObjectParent(HTML_Object* object)
-
-
-**HTML_RemoveObject<item>()**
-
-- HTML_Code HTML_RemoveObjectAttribute(HTML_Object* object, const char* attrName)
+- HtmlCode HtmlRemoveObjectAttribute(HtmlObject* object, const char* attrName)
 
 
-**Foreach Methods**
+**Attributes Foreach Methods**
 
-- HTML_Object* HTML_NextObject(HTML_Object* object)
+- HtmlAttributeIterator HtmlBeginAttribute(HtmlObject* object)
+- HtmlAttributeIterator HtmlEndAttribute(HtmlObject* object)
 
-- HTML_Object* HTML_PrevObject(HTML_object* object)
+- HtmlAttribute* HtmlPrevAttribute(HtmlAttributeIterator* iterator)
+- HtmlAttribute* HtmlNextAttribute(HtmlAttributeIterator* iterator)
 
-- HTML_ForeachObjectChild(HTML_Object* object, HTML_Object* value) {}
-
-- HTML_ForeachObjectAttribute(HTML_Object* object, const char* attrName, const char* attrValue) {}
+- HtmlForeachObjectAttribute(HtmlObject* object, const char* attrName, const char* attrValue) {}
 
 
+**Children Foreach Methods**
+
+- HtmlObjectIterator HtmlBeginObject(HtmlObject* object)
+- HtmlObjectIterator HtmlEndObject(HtmlObject* object)
+
+- HtmlObject* HtmlPrevObject(HtmlObjectIterator* iterator)
+- HtmlObject* HtmlNextObject(HtmlObjectIterator* iterator)
+
+- HtmlForeachObjectChild(HtmlObject* object, HtmlObject* value) {}
 
 ## Methods (reader.h)
 
-**HTML_Read<inputTypes>()**
+**HtmlRead`<inputTypes>`()**
 
-- HTML_Object* HTML_ReadStream(HTML_Stream* stream)
-
-- HTML_Object* HTML_ReadString(const char* html)
-
-- HTML_Object* HTML_ReadFileObject(FILE* file)
-
-- HTML_Object* HTML_ReadFile(const char* filename)
-
-
+- HtmlObject* HtmlReadStream(HtmlStream* stream)
+- HtmlObject* HtmlReadString(const char* html)
+- HtmlObject* HtmlReadFileObject(FILE* file)
+- HtmlObject* HtmlReadFile(const char* filename)
 
 ## Methods (writer.h)
 
-**HTML_Write<outputTypes>()**
+**HtmlWrite`<outputTypes>`()**
 
-- HTML_Code HTML_WriteStream(HTML_Object* object, HTML_Stream* stream)
-
-- HTML_Code HTML_WriteStringStream(HTML_Object* object, HTML_Stream* stringStream)
-
-- HTML_Code HTML_WriteFileObject(HTML_Object* object, FILE* file)
-
-- HTML_Code HTML_WriteFile(HTML_Object* object, const char* file)
-
-
+- HtmlCode HtmlWriteStream(HtmlObject* object, HtmlStream* stream)
+- HtmlCode HtmlWriteStringStream(HtmlObject* object, HtmlStream* stringStream)
+- HtmlCode HtmlWriteFileObject(HtmlObject* object, FILE* file)
+- HtmlCode HtmlWriteFile(HtmlObject* object, const char* file)
 
 ## Methods (search.h)
 
-**HTML_ObjectArray* HTML_SearchObject(HTML_Object* object, const char* words, int limit)**
+**HtmlObjectArray* HtmlSearchObject(HtmlObject* object, const char* words, int limit)**
 
-**HTML_Object* HTML_FindObject(HTML_Object* object, const char* words)**
+**HtmlObject* HtmlFindObject(HtmlObject* object, const char* words)**
+
+
 
