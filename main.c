@@ -1,4 +1,5 @@
 #include "myhtml2/myhtml.h"
+#include "myhtml2/myhtml_writer.h"
 #include <sys/time.h>
 
 
@@ -39,8 +40,14 @@ void PrintObjectStructure(HtmlObject* object) {
 
 int main() {
 	HtmlObject* document = CreateSampleDocument();
+
+	HtmlStream stream = HtmlCreateStreamString(128);
+	HtmlWriteObjectToStream(document, &stream);
+
+	HtmlStringStream* streamData = (HtmlStringStream*)stream.data;
+	streamData->buffer[streamData->length] = '\0'; // Null-terminate the string
+	printf("HTML Output:\n%s\n", ((HtmlStringStream*)stream.data)->buffer);
 	
-	PrintObjectStructure(document);
 	HtmlDestroyObject(document);
 	return 0;
 }

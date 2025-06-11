@@ -62,6 +62,7 @@ typedef int (*HtmlCallbackPutchar)(void* streamData, int c);
 typedef size_t (*HtmlCallbackWrite)(void* buf, size_t n, size_t size, void* streamData);
 
 typedef int (*HtmlCallbackSeek)(void* streamData, long move, int seek);
+typedef void (*HtmlCallbackDestroy)(void* streamData);
 
 
 typedef struct HtmlAttribute HtmlAttribute;
@@ -186,6 +187,7 @@ bool HtmlNextAttribute(HtmlAttributeIterator* iter, const char** attrName, const
 	if (iter->now != NULL) {
 		iter->next = iter->now->next;
         
+		printf("HtmlNextAttribute: %s = %s\n", iter->now->name, iter->now->value); // Debug output
         *attrName = iter->now->name;
         *attrValue = iter->now->value;
 	}
@@ -262,18 +264,112 @@ typedef struct HtmlStream {
 	HtmlCallbackWrite write;
 	
 	HtmlCallbackSeek seek;
+	HtmlCallbackDestroy destroy;
 } HtmlStream;
+
+typedef struct HtmlStringStream {
+	char* buffer;
+	size_t length;
+	size_t capacity;
+} HtmlStringStream;
 
 
 
 #define HtmlCreateStream() {0}
 
 
-/*
-HtmlStream HtmlCreateStreamString(size_t blockSize) {
-	return 
+int HtmlLibPutcharStringStream(HtmlStringStream* stream, int c) {
+	if (stream->length + 1 >= stream->capacity) {
+		size_t newCapacity = stream->capacity * 2 + 1;
+		char* newBuffer = (char*)realloc(stream->buffer, newCapacity);
+		if (!newBuffer) {
+			return EOF; // Out of memory
+		}
+
+		stream->buffer = newBuffer;
+		stream->capacity = newCapacity;
+	}
+
+	stream->buffer[stream->length++] = (char)c;
+	stream->buffer[stream->length] = 0;
+	return c;
 }
-*/
+
+size_t HtmlLibWriteStringStream(void* content, size_t length, size_t size, HtmlStringStream* stream) {
+	size_t totalSize = length * size;
+
+	if (stream->length + totalSize >= stream->capacity) {
+		size_t newCapacity = stream->capacity * 2 + totalSize;
+
+		char* newBuffer = (char*)realloc(stream->buffer, newCapacity);
+		HtmlHandleOutOfMemoryError(newBuffer, 0);
+
+		stream->buffer = newBuffer;
+		stream->capacity = newCapacity;
+	}
+
+	memcpy(stream->buffer + stream->length, content, totalSize);
+	stream->length += totalSize;
+	stream->buffer[stream->length] = 0; // Null-terminate the string
+
+	return totalSize;
+}
+
+void HtmlLibDestroyStringStream(HtmlStringStream* stream) {
+	if (stream != NULL) {
+		free(stream->buffer);
+		free(stream);
+	}
+}
+
+
+
+HtmlStream HtmlCreateStreamString(size_t blockSize) {
+	// create HtmlStringStream
+	char* buffer = (char*)malloc(blockSize);
+	HtmlHandleOutOfMemoryError(buffer, (HtmlStream){0});
+	buffer[0] = 0;
+
+	HtmlStringStream* stringStream = (HtmlStringStream*)malloc(sizeof(HtmlStringStream));
+	if (stringStream == NULL) {
+		free(buffer);
+		return (HtmlStream){0};
+	}
+
+	stringStream->buffer = buffer;
+	stringStream->length = 0;
+	stringStream->capacity = blockSize;
+
+	// create HtmlStream
+	HtmlStream stream = HtmlCreateStream();
+	stream.data = stringStream;
+	stream.putchar = (HtmlCallbackPutchar)HtmlLibPutcharStringStream;
+	stream.write = (HtmlCallbackWrite)HtmlLibWriteStringStream;
+	stream.destroy = (HtmlCallbackDestroy)HtmlLibDestroyStringStream;
+
+	return stream;
+}
+
+void HtmlDestroyStream(HtmlStream* stream) {
+	if (stream == NULL) {
+		return;
+	}
+
+	// Call destroy callback if set
+	if (stream->destroy) {
+		stream->destroy(stream->data);
+	}
+}
+
+const char* HtmlGetStreamString(HtmlStream* stream) {
+	HtmlHandleNullError(stream, NULL);
+	
+	HtmlStringStream* stringStream = (HtmlStringStream*)stream->data;
+	stringStream->buffer[stringStream->length] = 0; // Ensure null-termination
+	
+	return stringStream->buffer;
+}
+
 
 
 
@@ -302,26 +398,26 @@ HtmlObject* HtmlLibCreateObject(HtmlObjectType type, const char* name, HtmlObjec
 }
 
 
-HtmlObject* HtmlLibCreateObjectDocument() {
+HtmlObject* HtmlCreateObjectDocument() {
 	return HtmlLibCreateObject(HTML_TYPE_DOCUMENT, NULL, NULL);
 }
 
 
-HtmlObject* HtmlLibCreateObjectComment(HtmlObject* parent, const char* text) {
+HtmlObject* HtmlCreateObjectComment(HtmlObject* parent, const char* text) {
 	HtmlObject* comment = HtmlLibCreateObject(HTML_TYPE_COMMENT, NULL, parent);
 	HtmlSetText(comment->innerText, text);
 	return comment;
 }
 
 
-HtmlObject* HtmlLibCreateObjectTag(HtmlObject* parent, const char* name) {
+HtmlObject* HtmlCreateObjectTag(HtmlObject* parent, const char* name) {
 	HtmlHandleNullError(name, NULL);
 	
 	HtmlObject* tag = HtmlLibCreateObject(HTML_TYPE_TAG, name, parent);
 	return tag;
 }
 
-HtmlObject* HtmlLibCreateObjectTagEx(HtmlObject* parent, const char* name, const char* innerText, const char* afterText) {
+HtmlObject* HtmlCreateObjectTagEx(HtmlObject* parent, const char* name, const char* innerText, const char* afterText) {
 	HtmlHandleNullError(name, NULL);
 	
 	HtmlObject* tag = HtmlLibCreateObject(HTML_TYPE_TAG, name, parent);
@@ -333,7 +429,7 @@ HtmlObject* HtmlLibCreateObjectTagEx(HtmlObject* parent, const char* name, const
 
 // Create a HTML script
 // input text to be script content, or NULL to create empty script
-HtmlObject* HtmlLibCreateObjectScript(HtmlObject* parent, const char* content) {
+HtmlObject* HtmlCreateObjectScript(HtmlObject* parent, const char* content) {
 	HtmlObject* script = HtmlLibCreateObject(HTML_TYPE_SCRIPT, "script", parent);
 	HtmlSetText(script->innerText, content);
 	return script;
@@ -347,7 +443,7 @@ HtmlObject* HtmlCrerateObjectStyle(HtmlObject* parent, const char* content) {
 }
 
 
-HtmlObject* HtmlLibCreateObjectSingle(HtmlObject* parent, const char* name) {
+HtmlObject* HtmlCreateObjectSingle(HtmlObject* parent, const char* name) {
 	HtmlHandleNullError(name, NULL);
 	
 	HtmlObject* singleTag = HtmlLibCreateObject(HTML_TYPE_SINGLE, name, parent);
@@ -496,9 +592,11 @@ HtmlCode HtmlSetObjectAttribute(HtmlObject* object, const char* attrName, const 
     strcpy(attr->name, attrName);
 
     // Set attribute value
-    if (attrValue != NULL && attrValue[0] == '\0') {
+    if (attrValue != NULL && attrValue[0] != '\0') {
         attr->value = (char*)malloc(strlen(attrValue) + 1);
         HtmlHandleOutOfMemoryError(attr->value, HTML_OUT_OF_MEMORY);
+
+		strcpy(attr->value, attrValue);
     }
     else {
         attr->value = NULL;
