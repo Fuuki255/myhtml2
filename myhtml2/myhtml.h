@@ -33,7 +33,6 @@ typedef enum HtmlObjectFlag {
 	HTML_ID_DOCUMENT,
 	HTML_ID_COMMENT,
 	HTML_ID_DOCTYPE,
-	HTML_ID_XML,
 
 	HTML_HAS_NAME = 0x10,
 	HTML_HAS_ATTR = 0x20,
@@ -50,7 +49,6 @@ typedef enum HtmlObjectType {
 	HTML_TYPE_DOCUMENT = HTML_ID_DOCUMENT | HTML_HAS_TEXT,
 	HTML_TYPE_COMMENT = HTML_ID_COMMENT | HTML_HAS_TEXT,
 	HTML_TYPE_DOCTYPE = HTML_ID_DOCTYPE,
-	HTML_TYPE_XML = HTML_ID_XML,
 } HtmlObjectType;
 
 
@@ -98,7 +96,7 @@ typedef struct HtmlObject {
 
 #define HtmlDestroyPointer(p) \
 	if (p != NULL) {\
-		free(p);\
+		free((void*)p);\
 		p = NULL;\
 	}
 
@@ -133,7 +131,7 @@ typedef struct HtmlObject {
 
 #define HtmlHandleNullError(parameter, retValue) \
 	if (parameter == NULL) {\
-		fprintf(stderr, "%s: Parameter '%s' couldn't be NULL!\n", __func__, parameter);\
+		fprintf(stderr, "%s: Parameter '%s' couldn't be NULL!\n", __func__, #parameter);\
 		return retValue;\
 	}
 
@@ -176,22 +174,9 @@ typedef struct HtmlAttributeIterator {
 
 
 
-HtmlAttributeIterator HtmlBeginAttribute(HtmlObject* object) {
-	return (HtmlAttributeIterator){
-		.prev = NULL,
-		.now = object->firstAttribute,
-		.next = object->firstAttribute ? object->firstAttribute->next : NULL
-	};
-}
+#define HtmlBeginAttribute(object) (HtmlAttributeIterator){NULL, NULL, object ? object->firstAttribute : NULL}
 
-
-HtmlAttributeIterator HtmlEndAttribute(HtmlObject* object) {
-	return (HtmlAttributeIterator){
-		.prev = object->lastAttribute ? object->lastAttribute->next : NULL,
-		.now = object->lastAttribute,
-		.next = NULL
-	};
-}
+#define HtmlEndAttribute(object) (HtmlAttributeIterator){object ? object->lastAttribute : NULL, NULL, NULL}
 
 
 bool HtmlNextAttribute(HtmlAttributeIterator* iter, const char** attrName, const char** attrValue) {
@@ -235,22 +220,9 @@ typedef struct HtmlObjectIterator {
 
 
 
-HtmlObjectIterator HtmlBeginObject(HtmlObject* object) {
-	return (HtmlObjectIterator){
-		.prev = NULL,
-		.now = object->firstChild,
-		.next = object->firstChild ? object->firstChild->next : NULL
-	};
-}
+#define HtmlBeginObject(object) (HtmlObjectIterator){NULL, NULL, object ? object->firstChild : NULL}
 
-
-HtmlObjectIterator HtmlEndObject(HtmlObject* object) {
-	return (HtmlObjectIterator){
-		.prev = object->lastChild ? object->lastChild->next : NULL,
-		.now = object->lastChild,
-		.next = NULL
-	};
-}
+#define HtmlEndObject(object) (HtmlObjectIterator){object ? object->lastChild : NULL, NULL, NULL}
 
 
 HtmlObject* HtmlNextObject(HtmlObjectIterator* iter) {
@@ -309,34 +281,50 @@ HtmlStream HtmlCreateStreamString(size_t blockSize) {
 
 // HtmlObject //
 
-
 // Create
 
-static HtmlObject* HtmlCreateObject(HtmlObjectType type, const char* name) {
+HtmlObject* HtmlAddObjectChild(HtmlObject* parent, HtmlObject* child);
+
+HtmlObject* HtmlLibCreateObject(HtmlObjectType type, const char* name, HtmlObject* parent) {
+	// assign memory
 	HtmlObject* object = (HtmlObject*)calloc(1, sizeof(HtmlObject));
     HtmlHandleOutOfMemoryError(object, NULL);
 
+	// set value
 	object->type = type;
 	HtmlSetText(object->name, name);
+	
+	// set relationship
+	if (parent != NULL) {
+		HtmlAddObjectChild(parent, object);
+	}
 	return object;
 }
 
 
-HtmlObject* HtmlCreateObjectDocument() {
-	return HtmlCreateObject(HTML_TYPE_DOCUMENT, NULL);
+HtmlObject* HtmlLibCreateObjectDocument() {
+	return HtmlLibCreateObject(HTML_TYPE_DOCUMENT, NULL, NULL);
 }
 
 
-HtmlObject* HtmlCreateObjectComment(const char* text) {
-	HtmlObject* comment = HtmlCreateObject(HTML_TYPE_DOCUMENT, NULL);
-	
+HtmlObject* HtmlLibCreateObjectComment(HtmlObject* parent, const char* text) {
+	HtmlObject* comment = HtmlLibCreateObject(HTML_TYPE_COMMENT, NULL, parent);
 	HtmlSetText(comment->innerText, text);
 	return comment;
 }
 
 
-HtmlObject* HtmlCreateObjectTag(const char* name, const char* innerText, const char* afterText) {
-	HtmlObject* tag = HtmlCreateObject(HTML_TYPE_TAG, name);
+HtmlObject* HtmlLibCreateObjectTag(HtmlObject* parent, const char* name) {
+	HtmlHandleNullError(name, NULL);
+	
+	HtmlObject* tag = HtmlLibCreateObject(HTML_TYPE_TAG, name, parent);
+	return tag;
+}
+
+HtmlObject* HtmlLibCreateObjectTagEx(HtmlObject* parent, const char* name, const char* innerText, const char* afterText) {
+	HtmlHandleNullError(name, NULL);
+	
+	HtmlObject* tag = HtmlLibCreateObject(HTML_TYPE_TAG, name, parent);
 	HtmlSetText(tag->innerText, innerText);
 	HtmlSetText(tag->afterText, afterText);
 	return tag;
@@ -345,26 +333,24 @@ HtmlObject* HtmlCreateObjectTag(const char* name, const char* innerText, const c
 
 // Create a HTML script
 // input text to be script content, or NULL to create empty script
-HtmlObject* HtmlCreateObjectScript(const char* content) {
-	HtmlObject* script = HtmlCreateObject(HTML_TYPE_SCRIPT, "script");
+HtmlObject* HtmlLibCreateObjectScript(HtmlObject* parent, const char* content) {
+	HtmlObject* script = HtmlLibCreateObject(HTML_TYPE_SCRIPT, "script", parent);
 	HtmlSetText(script->innerText, content);
 	return script;
 }
 
 
-HtmlObject* HtmlCrerateObjectStyle(const char* content) {
-	HtmlObject* script = HtmlCreateObject(HTML_TYPE_SCRIPT, "style");
+HtmlObject* HtmlCrerateObjectStyle(HtmlObject* parent, const char* content) {
+	HtmlObject* script = HtmlLibCreateObject(HTML_TYPE_SCRIPT, "style", parent);
 	HtmlSetText(script->innerText, content);
 	return script;	
 }
 
 
-HtmlObject* HtmlCreateObjectSingle(const char* name, const char* content) {
+HtmlObject* HtmlLibCreateObjectSingle(HtmlObject* parent, const char* name) {
 	HtmlHandleNullError(name, NULL);
 	
-	HtmlObject* singleTag = HtmlCreateObject(HTML_TYPE_SINGLE, name);
-	
-	HtmlSetText(singleTag->innerText, content);
+	HtmlObject* singleTag = HtmlLibCreateObject(HTML_TYPE_SINGLE, name, parent);
 	return singleTag;
 }
 
@@ -438,13 +424,31 @@ void HtmlDestroyObject(HtmlObject* object) {
 // Add
 
 HtmlObject* HtmlAddObjectChild(HtmlObject* parent, HtmlObject* child) {
+	// Check invalid parameter
     HtmlHandleNullError(parent, NULL);
     HtmlHandleNullError(child, NULL);
+	
+	// clear old relationship
+	if (child->parent) {
+		child->prev->next = child->next;
+		child->next->prev = child->prev;
+		
+		if (child->parent->firstChild == child) {
+			child->parent->firstChild = child->next;
+		}
+		if (child->parent->lastChild == child) {
+			child->parent->lastChild = child->prev;
+		}
+		
+		// don't need to set child pointer to NULL, it will set after
+	}
 
+	// Edit child relationship setting
     child->parent = parent;
     child->prev = parent->lastChild;
     child->next = NULL;
 
+	// Edit parent relationship setting
     if (parent->lastChild) {
         parent->lastChild->next = child;
     }
@@ -460,7 +464,7 @@ HtmlObject* HtmlAddObjectChild(HtmlObject* parent, HtmlObject* child) {
 
 // Set
 
-HtmlCode HtmlSetObjectText(HtmlObject* object, const char* text) {
+HtmlCode HtmlSetObjectInnerText(HtmlObject* object, const char* text) {
     HtmlHandleNullError(object, HTML_NULL_POINTER);
 
     HtmlSetText(object->innerText, text);
@@ -520,8 +524,20 @@ HtmlCode HtmlSetObjectAttribute(HtmlObject* object, const char* attrName, const 
 // Get
 
 const char* HtmlGetObjectName(HtmlObject* object) {
-	HtmlHandleNullError(object, NULL);
-	return object->name ? object->name : "";
+	HtmlHandleNullError(object, "(null pointer)");
+	
+	switch (object->type) {
+		case HTML_TYPE_NONE:
+			return "(none)";
+		case HTML_TYPE_DOCUMENT:
+			return "(document)";
+		case HTML_TYPE_DOCTYPE:
+			return "(doctype)";
+		case HTML_TYPE_COMMENT:
+			return "(comment)";
+		default:
+			return object->name ? object->name : "(unknown)";
+	}
 }
 
 const char* HtmlGetObjectInnerText(HtmlObject* object) {
@@ -628,6 +644,30 @@ HtmlObject* HtmlGetObjectParent(HtmlObject* object) {
 }
 
 
+const char* HtmlGetObjectTypeString(HtmlObject* object) {
+	HtmlHandleNullError(object, "(null pointer)");
+	
+	switch (object->type) {
+		case HTML_TYPE_NONE:
+			return "NONE";
+		case HTML_TYPE_SINGLE:
+			return "SINGLE";
+		case HTML_TYPE_SCRIPT:
+			return "SCRIPT";
+		case HTML_TYPE_TAG:
+			return "TAG";
+		case HTML_TYPE_DOCUMENT:
+			return "DOCUMENT";
+		case HTML_TYPE_COMMENT:
+			return "COMMENT";
+		case HTML_TYPE_DOCTYPE:
+			return "DOCTYPE";
+		default:
+			return "(unknown)";
+	}
+}
+
+
 
 // Remove
 
@@ -729,6 +769,37 @@ size_t HtmlCountObjectAttributes(HtmlObject* object) {
 		count++;
 	}
 	return count;
+}
+
+
+
+// Print Information
+
+HtmlCode HtmlPrintObjectInfo(HtmlObject* object) {
+	printf("HtmlObject <%s> (%s)\n", HtmlGetObjectName(object), HtmlGetObjectTypeString(object));
+	printf("innerText: %s\n", HtmlGetObjectInnerText(object));
+	printf("afterText: %s\n", HtmlGetObjectAfterText(object));
+	
+	printf("attributes: ");
+	const char* attrName, *attrValue;
+	HtmlForeachObjectAttributes(object, attrName, attrValue) {
+		printf("%s ", attrName);
+	}
+	putchar('\n');
+	
+	printf("children: ");
+	HtmlObject* child;
+	HtmlForeachObjectChildren(object, child) {
+		printf("<%s> ", HtmlGetObjectName(child));
+	}
+	putchar('\n');
+	
+	printf("parent: <%s>\n", object->parent ? HtmlGetObjectName(object->parent) : "(null)");
+	printf("prev: <%s>\n", object->prev ? HtmlGetObjectName(object->prev) : "(null)");
+	printf("next: <%s>\n", object->next ? HtmlGetObjectName(object->next) : "(null)");
+	putchar('\n');
+	
+	return HTML_OK;
 }
 
 

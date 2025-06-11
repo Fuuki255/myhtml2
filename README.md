@@ -118,12 +118,12 @@ typedef struct HtmlStream {
 
 // Return text by only this object, better not edit its return
 
-- const char* HtmlGetObjectString(HtmlObject* object)
+- const char* HtmlGetObjectInnerText(HtmlObject* object)
 
 // Write object's text within its children
 
 - HtmlCode HtmlGetObjectText(HtmlObject* object, HtmlStream* stringStream)
-- const char* HtmlGetObjectInterval(HtmlObject* object)
+- const char* HtmlGetObjectAfterText(HtmlObject* object)
 - const char* HtmlGetObjectAttributeValue(HtmlObject* object, const char* attrName)
 - HtmlObject* HtmlGetObjectFirstChild(HtmlObject* object)
 - HtmlObject* HtmlGetObjectLastChild(HtmlObject* object)
