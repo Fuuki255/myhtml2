@@ -1,19 +1,38 @@
-# My HTML Parser (myhtml)
+# My Html Parser (myhtml2)
 
 | Item       | Value     |
 | :--------- | :-------- |
 | Langauge   | C Program |
-| Version    | 1.0.0     |
+| Version    | 2.0.0     |
 | Programmer | Fuuki-255 |
 
-## Types
+
+## How to use
+
+First, `HtmlObject*` is the object of HTML in `myhtml2`, you can create `HtmlObject*` by `HtmlCreateObject<type>()` e.g. create html tag by `HtmlCreateObjectTag(parentObject, tagName)`.
+
+Also, you can create object by `HtmlReadString(htmlString)` but it will be a TAG object inside a DOCUMENT object.
+
+Than, there are some methods to find tags we need. `HtmlFindObject(htmlObject, patterns)` is a method to get first object that suits to the patterns (it work like Python `BeautifulSoup`). Than, `HtmlSearchObject(htmlObject, pattern)` can search multi-object into `HtmlObjectArray*`.
+
+After we have the tags we needed, we can use some `get` functions to get we needs. For example:
+
+- `HtmlGetObjectAttributeValue(htmlObject, attributeName)` return attribute value
+- `HtmlGetObjectInnerText(HtmlObject)` return text it have (no including its children, you should use `HtmlGetObjectText`)
+- HtmlGetObjectText(HtmlObject, stringStream)`
+
+Final, destroy `HtmlObject*`, `HtmlStream*` or `HtmlArray*` by `HtmlDestroy<type>()` functions.
+
+
+
+## Structures
 
 **HtmlCode**
 
 ```c
 typedef enum HtmlCode {
-    HtmlOK,
-    HtmlOUT_OF_MEMORY,
+    HTML_OK,
+    HTML_OUT_OF_MEMORY,
 } HtmlCode;
 ```
 
@@ -21,35 +40,34 @@ typedef enum HtmlCode {
 
 ```c
 typedef enum HtmlObjectFlag {
-	HtmlID_NONE,
-	HtmlID_SINGLE,
-	HtmlID_SCRIPT,
-	HtmlID_TAG,
-	HtmlID_DOCUMENT,
-	HtmlID_COMMENT,
-	HtmlID_DOCTYPE,
-	HtmlID_XML,
+	HTML_ID_NONE,
+	HTML_ID_SINGLE,
+	HTML_ID_SCRIPT,
+	HTML_ID_TAG,
+	HTML_ID_DOCUMENT,
+	HTML_ID_COMMENT,
+	HTML_ID_DOCTYPE,
+	HTML_ID_XML,
 
-	HtmlHAS_NAME = 0x10,
-	HtmlHAS_ATTR = 0x20,
-	HtmlHAS_TEXT = 0x40,
-	HtmlHAS_CHILD = 0x80,
+	HTML_HAS_NAME = 0x10,
+	HTML_HAS_ATTR = 0x20,
+	HTML_HAS_TEXT = 0x40,
+	HTML_HAS_CHILD = 0x80,
 } HtmlObjectFlag;
 ```
 
 **HtmlObjectType**
 
-```c
-typedef enum HtmlObjectType {
-	HtmlNONE,
-	HtmlTYPE_SINGLE = HtmlID_SINGLE | HtmlHAS_NAME | HtmlHAS_ATTR,
-	HtmlTYPE_SCRIPT = HtmlID_SCRIPT | HtmlHAS_NAME | HtmlHAS_ATTR | HtmlHAS_TEXT,
-	HtmlTYPE_TAG = HtmlID_TAG | HtmlHAS_NAME | HtmlHAS_ATTR | HtmlHAS_TEXT | HtmlHAS_CHILD,
-	HtmlTYPE_DOCUMENT = HtmlID_DOCUMENT | HtmlHAS_TEXT,
-	HtmlTYPE_COMMENT = HtmlID_COMMENT | HtmlHAS_TEXT,
-	HtmlTYPE_DOCTYPE = HtmlID_DOCTYPE,
-} HtmlObjectType;
-```
+| Type | Has Name | Has Attribute | Has InnerText | Has Children |
+|:---|:---|:---|:---|:---|
+| NONE | false | false | false | false |
+| SINGLE | true | true | false | false |
+| SCRIPT | true | true | true | false |
+| TAG | true | true | true | true |
+| DOCUMENT | false | false | false | true |
+| COMMENT | false | false | true | false |
+| DOCTYPE | false | false | true | false |
+
 
 **HtmlObject**
 
