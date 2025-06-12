@@ -24,6 +24,69 @@ After we have the tags we needed, we can use some `get` functions to get we need
 Final, destroy `HtmlObject*`, `HtmlStream*` or `HtmlArray*` by `HtmlDestroy<type>()` functions.
 
 
+## Sample
+
+This is C program sample that it would show how to use myhtml2 to handle html document (HtmlReadCurl will only compile when LibCurl existed)
+
+```c
+#include <curl/curl.h>        // libcurl should include before myhtml2, otherwise the HtmlReadCurl will not compile
+#include "myhtml2/myhtml.h"
+
+int main(int argc, char** argv) {
+  /* init curl and read html from url */
+
+  // init curl
+  CURL* curl = curl_easy_init();
+
+  // a libcurl exten function that read html from website
+  // function will only set URL, WRITEDATA, WRITEFUNCTION options.
+  HtmlObject* html = HtmlReadCurl(curl, "http://www.example.com/");
+
+
+  /* print html title */
+
+  // getting first <title> from document, don't need the full path.
+  // You can replace HtmlGetObjectInnerText(node) by node->innerText, but using get function will more safety.
+  HtmlObject* node = htmlGetObjectChild(html, "title");
+  printf("html title: %s\n", HtmlGetObjectInnerText(node));
+
+
+  /* print document content */
+
+  // get html.body from html
+  node = HtmlGetObjectChild(html, "body");
+
+  // create string stream and get body content
+  HtmlStream stream = HtmlCreateStreamString(64 /* buffer size */);
+  HtmlGetObjectText(node, &stream);
+
+  // htmlGetStreamString() only for the stream type as string
+  printf("content:\n%s\n", htmlGetStreamString(&stream));
+
+
+  /* cleanup */
+
+  // destroy stream and html
+  HtmlDestroyStream(stream);
+  HtmlDestroyObject(html);
+
+  // cleanup curl
+  curl_easy_cleanup(curl);
+
+  return 0;
+}
+
+```
+
+
+## Handle Error
+
+`myhtml2` always print error message when the error raise, e.g. "HtmlReadString: Out of memory!", than returning NULL or not HTML_OK.
+
+You can disable printing message by HTML_NO_DEBUG, than the message will not print but the error still handling.
+
+
+
 
 ## Structures
 
