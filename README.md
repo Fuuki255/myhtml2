@@ -152,20 +152,22 @@ typedef struct HtmlObject {
 
 **HtmlAttribute**
 
-```c
-// Object attribute inside, not providing edit to user
-typedef struct HtmlAttribute {
-    char* name;
-    char* value;
-    HtmlAttribute* front, *back;
-} HtmlAttribute;
-```
+`HtmlAttribute` is not provided to edit but there are completed handle in HtmlObject methods.
 
 **HtmlStream**
 
 ```c
 typedef struct HtmlStream {
-    // ...
+  void* data; // customizable pointer to read or write
+
+  // operations same to c std
+  HtmlCallbackGetchar getchar;
+  HtmlCallbackRead read;
+  HtmlCallbackPutchar putchar;
+  HtmlCallbackWrite write;
+  HtmlCallbackSeek seek;
+
+  HtmlCallbackDestroy destroy; // customizable function to destroy `void* data` when destroying stream
 } HtmlStream;
 ```
 
