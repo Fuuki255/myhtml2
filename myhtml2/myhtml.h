@@ -18,10 +18,15 @@ typedef enum HtmlCode {
 	HTML_OK,
 	HTML_OUT_OF_MEMORY,
 	HTML_NULL_POINTER,
+	HTML_ITEM_NOT_FOUND,
+	HTML_EMPTY_STRING,
+
 	HTML_STREAM_NOT_WRITEABLE,
 	HTML_STREAM_NOT_READABLE,
 	HTML_STREAM_NOT_SEEKABLE,
-	HTML_ITEM_NOT_FOUND,
+
+	HTML_FILE_NOT_WRITABLE,
+	HTML_FILE_NOT_READABLE
 } HtmlCode;
 
 
@@ -109,7 +114,7 @@ typedef struct HtmlObject {
 	}
 
 
-
+// Error Handle without debug message
 #ifdef HTML_NO_DEBUG
 #define HtmlHandleError(check, retValue, ...) \
 	if (check) return retValue;
@@ -122,6 +127,12 @@ typedef struct HtmlObject {
     if (pointer == NULL) return retValue;
 
 
+#define HtmlHandleEmptyStringError(str, retValue) \
+	if (str == NULL || (str == NULL && str[0] == 0))\
+        return retValue;
+
+
+// Error Handle with debug message
 #else
 #define HtmlHandleError(check, retValue, ...) \
 	if (check) {\
@@ -142,6 +153,14 @@ typedef struct HtmlObject {
         fprintf(stderr, "%s: Out of memory!\n", __func__);\
         return retValue;\
     }
+
+
+#define HtmlHandleEmptyStringError(str, retValue) \
+	if (str == NULL || (str == NULL && str[0] == 0)) {\
+		fprintf(stderr, "%s: Empty string as parameter!\n", __func__);\
+        return retValue;\
+    }
+
 
 #endif
 
@@ -256,15 +275,13 @@ HtmlObject* HtmlPrevObject(HtmlObjectIterator* iter) {
 
 typedef struct HtmlStream {
 	void* data;
+	HtmlCallbackDestroy destroy;
 	
 	HtmlCallbackGetchar getchar;
 	HtmlCallbackRead read;
-	
 	HtmlCallbackPutchar putchar;
 	HtmlCallbackWrite write;
-	
 	HtmlCallbackSeek seek;
-	HtmlCallbackDestroy destroy;
 } HtmlStream;
 
 typedef struct HtmlStringStream {
@@ -274,11 +291,27 @@ typedef struct HtmlStringStream {
 } HtmlStringStream;
 
 
+// Basic methods
 
-#define HtmlCreateStream() {0}
+#define HtmlCreateStreamEmpty() {0}
+
+void HtmlDestroyStream(HtmlStream* stream) {
+	if (stream == NULL) {
+		return;
+	}
+
+	// Call destroy callback if set
+	if (stream->destroy) {
+		stream->destroy(stream->data);
+	}
+}
 
 
-int HtmlLibPutcharStringStream(HtmlStringStream* stream, int c) {
+
+
+// string stream
+
+int HtmlLibPutcharToStringStream(HtmlStringStream* stream, int c) {
 	if (stream->length + 1 >= stream->capacity) {
 		size_t newCapacity = stream->capacity * 2 + 1;
 		char* newBuffer = (char*)realloc(stream->buffer, newCapacity);
@@ -315,6 +348,8 @@ size_t HtmlLibWriteStringStream(void* content, size_t length, size_t size, HtmlS
 	return totalSize;
 }
 
+
+
 void HtmlLibDestroyStringStream(HtmlStringStream* stream) {
 	if (stream != NULL) {
 		free(stream->buffer);
@@ -322,52 +357,75 @@ void HtmlLibDestroyStringStream(HtmlStringStream* stream) {
 	}
 }
 
-
-
 HtmlStream HtmlCreateStreamString(size_t blockSize) {
-	// create HtmlStringStream
-	char* buffer = (char*)malloc(blockSize);
-	HtmlHandleOutOfMemoryError(buffer, (HtmlStream){0});
-	buffer[0] = 0;
-
-	HtmlStringStream* stringStream = (HtmlStringStream*)malloc(sizeof(HtmlStringStream));
-	if (stringStream == NULL) {
+	// create stream data
+	HtmlStringStream* streamData = (HtmlStringStream*)malloc(sizeof(HtmlStringStream));
+	if (streamData == NULL) {
 		free(buffer);
 		return (HtmlStream){0};
 	}
 
-	stringStream->buffer = buffer;
-	stringStream->length = 0;
-	stringStream->capacity = blockSize;
+	streamData->buffer = (char*)malloc(blockSize);
+	HtmlHandleOutOfMemoryError(streamData->buffer, (HtmlStream){0});
+	streamData->buffer[0] = 0;
 
-	// create HtmlStream
-	HtmlStream stream = HtmlCreateStream();
-	stream.data = stringStream;
-	stream.putchar = (HtmlCallbackPutchar)HtmlLibPutcharStringStream;
-	stream.write = (HtmlCallbackWrite)HtmlLibWriteStringStream;
+	streamData->length = 0;
+	streamData->capacity = blockSize;
+
+	// create stream
+	HtmlStream stream = HtmlCreateStreamEmpty();
+	stream.data = streamData;
 	stream.destroy = (HtmlCallbackDestroy)HtmlLibDestroyStringStream;
+
+	stream.putchar = (HtmlCallbackPutchar)HtmlLibPutcharToStringStream;
+	stream.write = (HtmlCallbackWrite)HtmlLibWriteStringStream;
 
 	return stream;
 }
 
-void HtmlDestroyStream(HtmlStream* stream) {
-	if (stream == NULL) {
-		return;
-	}
 
-	// Call destroy callback if set
-	if (stream->destroy) {
-		stream->destroy(stream->data);
-	}
+
+
+// file stream
+
+HtmlStream HtmlCreateStreamFileObject(FILE* file) {
+	HtmlHandleNullError(file, HtmlCreateStreamEmpty());
+
+	HtmlStream stream = HtmlCreateStream();
+	stream->data = file;
+
+	stream->putchar = fputc;
+	stream->write = fwrite;
+	stream->getchar = fgetc;
+	stream->read = fread;
+	stream->seek = fseek;
+	return stream;
 }
+
+HtmlStream HtmlCreateStreamFile(const char* filename) {
+	HtmlHandleEmptyStringError(filename, HtmlCreateStreamEmpty());
+
+	FILE* file = fopen(filename, "r+");
+	HtmlStream stream = HtmlCreateStreamFileObject(file);
+	stream->destroy = fclose;
+
+	return stream;
+}
+
+
+
+
+
+// get
 
 const char* HtmlGetStreamString(HtmlStream* stream) {
 	HtmlHandleNullError(stream, NULL);
+	HtmlHandleError(stream->destroy, NULL, "not a string stream!");
 	
-	HtmlStringStream* stringStream = (HtmlStringStream*)stream->data;
-	stringStream->buffer[stringStream->length] = 0; // Ensure null-termination
+	HtmlStringStream* streamData = (HtmlStringStream*)stream->data;
+	streamData->buffer[streamData->length] = 0; // Ensure null-termination
 	
-	return stringStream->buffer;
+	return streamData->buffer;
 }
 
 

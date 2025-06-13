@@ -63,8 +63,8 @@ HtmlCode HtmlLibWriteAttributesToStream(HtmlObject* object, HtmlStream* stream) 
 }
 
 
-HtmlCode HtmlWriteObjectToStream(HtmlObject* object, HtmlStream* stream) {
-	HtmlObject* child;
+HtmlCode HtmlLibWriteObjectToStream(HtmlObject* object, HtmlStream* stream) {
+    HtmlObject* child;
     const char* innerText;
 	
     if (object->type == HTML_TYPE_COMMENT) {
@@ -127,22 +127,61 @@ HtmlCode HtmlWriteObjectToStream(HtmlObject* object, HtmlStream* stream) {
 }
 
 
-HtmlCode HtmlWriteFileObject(HtmlObject* object, FILE* file) {
-    HtmlStream stream = HtmlCreateStreamFileObject(file);
-    return HtmlWriteObjectToStream
+
+
+
+
+
+
+
+
+
+
+
+
+
+HtmlCode HtmlWriteObjectToStream(HtmlObjec* object, HtmlStream* stream) {
+    HtmlHandleNullError(object, HTML_NULL_POINTER);
+    HtmlHandleNullError(stream, HTML_NULL_POINTER);
+
+    retur HtmlLibWriteObjectToStream(object, stream);
 }
 
 
+HtmlCode HtmlWriteObjectToFileObject(HtmlObject* object, FILE* file) {
+    HtmlHandleNullError(object, HTML_NULL_POINTER);
+    HtmlHandleNullError(file, HTML_NULL_POINTER);
+
+    HtmlStream stream = HtmlCreateStreamFileObject(file);
+    return HtmlLibWriteObjectToStream(object, &stream);
+    // no needed to destroy the HtmlStream
+}
 
 
+HtmlCode HtmlWriteObjectToFile(HtmlObject* object, const char* filename) {
+    HtmlHandleNullError(object, HTML_NULL_POINTER);
+    HtmlHandleEmptyStringError(filename, HTML_EMPTY_STRING);
+
+    FILE* file = fopen(filename, "w");
+    HtmlHandleError(file == NULL, HTML_FILE_NOT_WRITABLE, "%s: failed to open '%s' in write mode\n",
+            __func__, filename);
+    
+    HtmlStream stream = HtmlCreateStreamFileObject(file);
+    HtmlCode ret = HtmlLibWriteObjectToStream(object, &stream);
+    HtmlDestroyStream(&stream);
+
+    return ret;
+}
 
 
+// convert HtmlObject to html string
+// ! you should free return string after used
+const char* HtmlWriteObjectToString(HtmlObject* object) {
+    HtmlHandleNullError(object, HTML_NULL_POINTER);
 
-
-
-
-
-
+    HtmlStream stream = HtmlCreateStreamString(128);
+    return HtmlLibWriteObjectToStream(object, &stream);
+}
 
 
 #endif /* _MYHTML_WRITER_H_ */
