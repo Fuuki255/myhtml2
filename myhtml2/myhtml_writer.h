@@ -56,7 +56,7 @@ HtmlCode HtmlLibWriteAttributesToStream(HtmlObject* object, HtmlStream* stream) 
 
 		if (attrValue != NULL) {
 			stream->putchar(stream->data, '=');
-			HtmlLibWriteFormattedStringToStream(attrValue, stream);
+			HtmlLibFormattedStringToStream(attrValue, stream);
 		}
     }
     return HTML_OK;
@@ -124,6 +124,12 @@ HtmlCode HtmlWriteObjectToStream(HtmlObject* object, HtmlStream* stream) {
         stream->write((void*)object->afterText, strlen(object->afterText), 1, stream->data);
     }
     return HTML_OK;
+}
+
+
+HtmlCode HtmlWriteFileObject(HtmlObject* object, FILE* file) {
+    HtmlStream stream = HtmlCreateStreamFileObject(file);
+    return HtmlWriteObjectToStream
 }
 
 
