@@ -1,19 +1,18 @@
 # My Html Parser (myhtml2)
 
+## Information
+
 | Item       | Value     |
 | :--------- | :-------- |
 | Langauge   | C Program |
 | Version    | 2.0.0     |
 | Programmer | Fuuki-255 |
 
-
 ## How to use
 
-First, `HtmlObject*` is the object of HTML in `myhtml2`, you can create `HtmlObject*` by `HtmlCreateObject<type>()` e.g. create html tag by `HtmlCreateObjectTag(parentObject, tagName)`.
+To use myhtml2, you should use `HtmlReadObjectFrom<type>()`, these function can read html to  `HtmlObject`, it will be html objects in DOCUMENT object.
 
-Also, you can create object by `HtmlReadString(htmlString)` but it will be a TAG object inside a DOCUMENT object.
-
-Than, there are some methods to find tags we need. `HtmlFindObject(htmlObject, patterns)` is a method to get first object that suits to the patterns (it work like Python `BeautifulSoup`). Than, `HtmlSearchObject(htmlObject, pattern)` can search multi-object into `HtmlObjectArray*`.
+Than, there are some methods to find tags we need. `HtmlGetObjectChild(htmlObject, patterns)` is a method to get first object that suits to the patterns (it work like Python `BeautifulSoup`). To read multi-object, You can use `HtmlSearchObject(htmlObject, pattern)` to get all object suit the patterns to `HtmlObjectArray`.
 
 After we have the tags we needed, we can use some `get` functions to get we needs. For example:
 
@@ -21,8 +20,11 @@ After we have the tags we needed, we can use some `get` functions to get we need
 - `HtmlGetObjectInnerText(HtmlObject)` return text it have (no including its children, you should use `HtmlGetObjectText`)
 - HtmlGetObjectText(HtmlObject, stringStream)`
 
-Final, destroy `HtmlObject*`, `HtmlStream*` or `HtmlArray*` by `HtmlDestroy<type>()` functions.
+You can edit the html by `HtmlSetObject<type>()` functions, 
 
+To write html to file or string, you can use `HtmlWriteObjectTo<type>()`.
+
+Final, destroy `HtmlObject*`, `HtmlStream*` or `HtmlArray*` by `HtmlDestroy<type>()` functions.
 
 ## Sample
 
@@ -78,15 +80,11 @@ int main(int argc, char** argv) {
 
 ```
 
-
 ## Handle Error
 
 `myhtml2` always print error message when the error raise, e.g. "HtmlReadString: Out of memory!", than returning NULL or not HTML_OK.
 
 You can disable printing message by HTML_NO_DEBUG, than the message will not print but the error still handling.
-
-
-
 
 ## Structures
 
@@ -121,16 +119,15 @@ typedef enum HtmlObjectFlag {
 
 **HtmlObjectType**
 
-| Type | Has Name | Has Attribute | Has InnerText | Has Children |
-|:---|:---|:---|:---|:---|
-| NONE | false | false | false | false |
-| SINGLE | true | true | false | false |
-| SCRIPT | true | true | true | false |
-| TAG | true | true | true | true |
-| DOCUMENT | false | false | false | true |
-| COMMENT | false | false | true | false |
-| DOCTYPE | false | false | true | false |
-
+| Type     | Has Name | Has Attribute | Has InnerText | Has Children |
+| :------- | :------- | :------------ | :------------ | :----------- |
+| NONE     | false    | false         | false         | false        |
+| SINGLE   | true     | true          | false         | false        |
+| SCRIPT   | true     | true          | true          | false        |
+| TAG      | true     | true          | true          | true         |
+| DOCUMENT | false    | false         | false         | true         |
+| COMMENT  | false    | false         | true          | false        |
+| DOCTYPE  | false    | false         | true          | false        |
 
 **HtmlObject**
 
@@ -173,7 +170,7 @@ typedef struct HtmlStream {
 
 ## Methods (methods.h)
 
-**HtmlCreate`<type>`()**
+**HtmlCreate `<type>`()**
 
 - HtmlObject* HtmlCreateDocument()
 - HtmlObject* HtmlCreateTag(const char* name, const char* text)
@@ -181,21 +178,21 @@ typedef struct HtmlStream {
 - HtmlObject* HtmlCreateScript()
 - HtmlObject* HtmlCreateStyle()
 
-**HtmlDestroy`<type>`()**
+**HtmlDestroy `<type>`()**
 
 - void HtmlDestroyObject(HtmlObject* object)
 - void HtmlClearChildren(HtmlObject* object)
 
-**HtmlAddObject`<item>`()**
+**HtmlAddObject `<item>`()**
 
 - HtmlObject* HtmlAddObjectChild(HtmlObject* parent, HtmlObject* child)
 
-**HtmlSetObject`<item>`()**
+**HtmlSetObject `<item>`()**
 
 - HtmlCode HtmlSetObjectText(HtmlObject* object, const char* text)
 - HtmlCode HtmlSetObjectAttribute(HtmlObject* object, const char* attrName, const char* attrValue)
 
-**HtmlGetObject`<item>`()**
+**HtmlGetObject `<item>`()**
 
 - const char* HtmlGetObjectName(HtmlObject* object)
 
@@ -212,35 +209,29 @@ typedef struct HtmlStream {
 - HtmlObject* HtmlGetObjectLastChild(HtmlObject* object)
 - HtmlObject* HtmlGetObjectParent(HtmlObject* object)
 
-**HtmlRemoveObject`<item>`()**
+**HtmlRemoveObject `<item>`()**
 
 - HtmlCode HtmlRemoveObjectAttribute(HtmlObject* object, const char* attrName)
-
 
 **Attributes Foreach Methods**
 
 - HtmlAttributeIterator HtmlBeginAttribute(HtmlObject* object)
 - HtmlAttributeIterator HtmlEndAttribute(HtmlObject* object)
-
 - HtmlAttribute* HtmlPrevAttribute(HtmlAttributeIterator* iterator)
 - HtmlAttribute* HtmlNextAttribute(HtmlAttributeIterator* iterator)
-
 - HtmlForeachObjectAttribute(HtmlObject* object, const char* attrName, const char* attrValue) {}
-
 
 **Children Foreach Methods**
 
 - HtmlObjectIterator HtmlBeginObject(HtmlObject* object)
 - HtmlObjectIterator HtmlEndObject(HtmlObject* object)
-
 - HtmlObject* HtmlPrevObject(HtmlObjectIterator* iterator)
 - HtmlObject* HtmlNextObject(HtmlObjectIterator* iterator)
-
 - HtmlForeachObjectChild(HtmlObject* object, HtmlObject* value) {}
 
 ## Methods (reader.h)
 
-**HtmlRead`<inputTypes>`()**
+**HtmlRead `<inputTypes>`()**
 
 - HtmlObject* HtmlReadStream(HtmlStream* stream)
 - HtmlObject* HtmlReadString(const char* html)
@@ -249,7 +240,7 @@ typedef struct HtmlStream {
 
 ## Methods (writer.h)
 
-**HtmlWrite`<outputTypes>`()**
+**HtmlWrite `<outputTypes>`()**
 
 - HtmlCode HtmlWriteStream(HtmlObject* object, HtmlStream* stream)
 - HtmlCode HtmlWriteStringStream(HtmlObject* object, HtmlStream* stringStream)
@@ -261,6 +252,3 @@ typedef struct HtmlStream {
 **HtmlObjectArray* HtmlSearchObject(HtmlObject* object, const char* words, int limit)**
 
 **HtmlObject* HtmlFindObject(HtmlObject* object, const char* words)**
-
-
-
