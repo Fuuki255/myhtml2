@@ -102,14 +102,14 @@ typedef struct HtmlObject {
 
 // Useful Macros //
 
-#define HtmlDestroyPointer(p) \
+#define HtmlLibDestroyPointer(p) \
 	if (p != NULL) {\
 		free((void*)p);\
 		p = NULL;\
 	}
 
 #define HtmlSetText(var, text) \
-	HtmlDestroyPointer(var);\
+	HtmlLibDestroyPointer(var);\
 	if (text != NULL) {\
 		var = (char*)malloc(strlen(text) + 1);\
 		strcpy(var, text);\
@@ -522,8 +522,8 @@ void HtmlDestroyObject(HtmlObject* object);
 void HtmlClearObjectAttributes(HtmlObject* object) {
     const char* attrName, *attrValue;
     HtmlForeachObjectAttributes(object, attrName, attrValue) {
-        HtmlDestroyPointer(attrName);
-        HtmlDestroyPointer(attrValue);
+        HtmlLibDestroyPointer(attrName);
+        HtmlLibDestroyPointer(attrValue);
         
         free(objectAttrIter.now);
     }
@@ -547,9 +547,9 @@ void HtmlDestroyObject(HtmlObject* object) {
 	HtmlClearObjectChildren(object);
     HtmlClearObjectAttributes(object);
 	
-	HtmlDestroyPointer(object->name);
-	HtmlDestroyPointer(object->innerText);
-	HtmlDestroyPointer(object->afterText);
+	HtmlLibDestroyPointer(object->name);
+	HtmlLibDestroyPointer(object->innerText);
+	HtmlLibDestroyPointer(object->afterText);
 
 
     // Clear relationship
@@ -853,8 +853,8 @@ HtmlCode HtmlRemoveObjectAttribute(HtmlObject* object, const char* attrName) {
 			}
 
 			// Free the attribute memory
-			HtmlDestroyPointer(_attrName);
-			HtmlDestroyPointer(_attrValue);
+			HtmlLibDestroyPointer(_attrName);
+			HtmlLibDestroyPointer(_attrValue);
 			free(objectAttrIter.now);
 			return HTML_OK;
 		}
@@ -964,4 +964,4 @@ HtmlCode HtmlPrintObjectInfo(HtmlObject* object) {
 
 
 
-#endif // _MYHTML_H_ //
+#endif // _MYHTML_OBJECT_H_ //

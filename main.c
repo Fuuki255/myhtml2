@@ -13,13 +13,14 @@ HtmlObject* CreateSampleDocument() {
 	HtmlObject* objBody = HtmlCreateObjectTag(objHtml, "body");
 	
 	// html.head
-	HtmlObject* objTitle = HtmlCreateObjectTagEx(objHead, "title", "First Sample of myhtml2", NULL);
+	HtmlCreateObjectTagEx(objHead, "title", "First Sample of myhtml2", NULL);
 	HtmlObject* objMeta = HtmlCreateObjectSingle(objHead, "meta");
 	HtmlSetObjectAttribute(objMeta, "charset", "utf-8");
-	HtmlObject* objComment = HtmlCreateObjectComment(objBody, "Hello, World!");
+
+	HtmlCreateObjectComment(objBody, "Hello, World!");
 	
 	// html.body
-	HtmlObject* objH1 = HtmlCreateObjectTag(objHead, "h1");
+	HtmlCreateObjectTag(objHead, "h1");
 	
 	return document;
 }

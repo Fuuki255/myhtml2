@@ -1,6 +1,3 @@
-#ifndef _MYHTML_H_
-#define _MYHTML_H_
-
 #ifndef _MYHTML_OBJECT_H_
 #include "myhtml_object.h"
 #endif
@@ -14,5 +11,3 @@
 #include "myhtml_search.h"
 #endif
 
-
-#endif /* _MYHTML_H_ */
