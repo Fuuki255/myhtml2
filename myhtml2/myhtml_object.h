@@ -65,10 +65,11 @@ typedef enum HtmlObjectType {
 typedef int (*HtmlCallbackGetchar)(void* streamData);
 typedef size_t (*HtmlCallbackRead)(void* buf, size_t n, size_t size, void* streamData);
 
-typedef int (*HtmlCallbackPutchar)(void* streamData, int c);
+typedef int (*HtmlCallbackPutchar)(int c, void* streamData);
 typedef size_t (*HtmlCallbackWrite)(void* buf, size_t n, size_t size, void* streamData);
 
 typedef int (*HtmlCallbackSeek)(void* streamData, long move, int seek);
+typedef size_t (*HtmlCallbackTell)(void* streamData);
 typedef void (*HtmlCallbackDestroy)(void* streamData);
 
 
@@ -101,6 +102,10 @@ typedef struct HtmlObject {
 
 
 // Useful Macros //
+
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
 
 #define HtmlLibDestroyPointer(p) \
 	if (p != NULL) {\
@@ -283,13 +288,15 @@ typedef struct HtmlStream {
 	HtmlCallbackPutchar putchar;
 	HtmlCallbackWrite write;
 	HtmlCallbackSeek seek;
+	HtmlCallbackTell tell;
 } HtmlStream;
 
-typedef struct HtmlStringStream {
+typedef struct HtmlStreamString {
 	char* buffer;
+	size_t position; // for reading
 	size_t length;
 	size_t capacity;
-} HtmlStringStream;
+} HtmlStreamString;
 
 
 // Basic methods
@@ -308,61 +315,143 @@ void HtmlDestroyStream(HtmlStream* stream) {
 #define HtmlIsStreamSeekable(stream) (stream != NULL && stream->seek != NULL)
 
 
+#define HtmlGetcharFromStream(stream) \
+	(stream != NULL && stream->getchar != NULL ? stream->getchar(stream->data) : EOF)
+
+#define HtmlReadContentFromStream(buf, length, size, stream) \
+	(stream != NULL && stream->read != NULL ? stream->read(buf, length, size, stream->data) : 0)
+
+#define HtmlPutcharToStream(c, stream) \
+	(stream != NULL && stream->putchar != NULL ? stream->putchar(c, stream->data) : EOF)
+
+#define HtmlWriteContentToStream(content, length, size, stream) \
+	(stream != NULL && stream->write != NULL ? stream->write(content, length, size, stream->data) : 0)
+
+
+#define HtmlGetStreamPosition(stream) \
+	(stream != NULL && stream->tell != NULL ? stream->tell(stream->data) : 0)
+
 
 
 // string stream
 
 
+HtmlCode HtmlLibExpandStreamString(HtmlStreamString* streamData, size_t expandSize) {
+	if (streamData->length + expandSize >= streamData->capacity) {
+		size_t newCapacity = (streamData->capacity + expandSize) * 2;
+		char* newBuffer = (char*)realloc(streamData->buffer, newCapacity);
 
-int HtmlLibPutcharToStringStream(HtmlStringStream* stream, int c) {
-	if (stream->length + 1 >= stream->capacity) {
-		size_t newCapacity = stream->capacity * 2 + 1;
-		char* newBuffer = (char*)realloc(stream->buffer, newCapacity);
-		if (!newBuffer) {
-			return EOF; // Out of memory
-		}
+		HtmlHandleOutOfMemoryError(newBuffer, HTML_OUT_OF_MEMORY);
 
-		stream->buffer = newBuffer;
-		stream->capacity = newCapacity;
+		streamData->buffer = newBuffer;
+		streamData->capacity = newCapacity;
+	}
+	return HTML_OK;
+}
+
+
+
+
+int HtmlLibGetcharFromStreamString(HtmlStreamString* stream) {
+	if (stream->position >= stream->length) {
+		return EOF; // End of stream
 	}
 
+	return stream->buffer[stream->position++];
+}
+
+size_t HtmlLibReadFromStreamString(void* content, size_t length, size_t size, HtmlStreamString* streamData) {
+	size_t total = length * size;
+	size_t less = streamData->length - streamData->position;
+	total = MIN(total, streamData->length - streamData->position);
+
+	memcpy(content, streamData->buffer + streamData->position, total);
+	streamData->position += total;
+	return total;
+}
+
+
+
+
+int HtmlLibPutcharToStreamString(int c, HtmlStreamString* stream) {
+	// expand size
+	if (HtmlLibExpandStreamString(stream, 1) != HTML_OK) {
+		return 0; // Out of memory
+	}
+
+	// put char
 	stream->buffer[stream->length++] = (char)c;
-	stream->buffer[stream->length] = 0;
+	// stream->buffer[stream->length] = 0;			// Null-terminate the string but removed for performance
 	return c;
 }
 
-size_t HtmlLibWriteStringStream(void* content, size_t length, size_t size, HtmlStringStream* stream) {
-	size_t totalSize = length * size;
+size_t HtmlLibWriteStreamString(void* content, size_t length, size_t size, HtmlStreamString* stream) {
+	size_t total = length * size;
 
-	if (stream->length + totalSize >= stream->capacity) {
-		size_t newCapacity = stream->capacity * 2 + totalSize;
-
-		char* newBuffer = (char*)realloc(stream->buffer, newCapacity);
-		HtmlHandleOutOfMemoryError(newBuffer, 0);
-
-		stream->buffer = newBuffer;
-		stream->capacity = newCapacity;
+	// expand size
+	if (HtmlLibExpandStreamString(stream, total) != HTML_OK) {
+		return 0; // Out of memory
 	}
 
-	memcpy(stream->buffer + stream->length, content, totalSize);
-	stream->length += totalSize;
-	stream->buffer[stream->length] = 0; // Null-terminate the string
+	// add content
+	memcpy(stream->buffer + stream->length, content, total);
+	stream->length += total;
+	// stream->buffer[stream->length] = 0;			// Null-terminate the string but removed for performance
 
-	return totalSize;
+	return total;
+}
+
+
+int HtmlLibSeekStreamString(HtmlStreamString* streamData, long move, int seek) {
+	if (seek == SEEK_SET) {
+		streamData->position = move;
+	} else if (seek == SEEK_CUR) {
+		streamData->position += move;
+	} else if (seek == SEEK_END) {
+		streamData->position = streamData->position + move;
+	}
+
+	if (streamData->position < 0) {
+		streamData->position = 0;
+	} else if (streamData->position > streamData->length) {
+		streamData->position = streamData->length;
+	}
+
+	return HTML_OK;
+}
+
+long HtmlLibTellStreamString(HtmlStreamString* streamData) {
+	return streamData->position;
 }
 
 
 
-void HtmlLibDestroyStringStream(HtmlStringStream* streamData) {
+
+
+void HtmlLibDestroyStringStream(HtmlStreamString* streamData) {
 	if (streamData != NULL) {
 		free(streamData->buffer);
 		free(streamData);
 	}
 }
 
-HtmlStream HtmlCreateStreamStringBuffered(size_t blockSize) {
+
+
+#define HtmlLibInitStreamString(streamData) \
+	(HtmlStream){\
+		.data = streamData,\
+		.destroy = (HtmlCallbackDestroy)HtmlLibDestroyStringStream,\
+		.getchar = (HtmlCallbackGetchar)HtmlLibGetcharFromStreamString,\
+		.read = (HtmlCallbackRead)HtmlLibReadFromStreamString,\
+		.putchar = (HtmlCallbackPutchar)HtmlLibPutcharToStreamString,\
+		.write = (HtmlCallbackWrite)HtmlLibWriteStreamString,\
+		.seek = (HtmlCallbackSeek)HtmlLibSeekStreamString,\
+		.tell = (HtmlCallbackTell)HtmlLibTellStreamString\
+	}
+
+HtmlStream HtmlCreateStreamBuffer(size_t blockSize) {
 	// create streamData //
-	HtmlStringStream* streamData = (HtmlStringStream*)malloc(sizeof(HtmlStringStream));
+	HtmlStreamString* streamData = (HtmlStreamString*)malloc(sizeof(HtmlStreamString));
 	HtmlHandleOutOfMemoryError(streamData, HtmlCreateStreamEmpty());
 
 	// Initialize streamData
@@ -374,18 +463,24 @@ HtmlStream HtmlCreateStreamStringBuffered(size_t blockSize) {
 	streamData->buffer[0] = 0;
 	
 	// other streamData
+	streamData->position = 0;
 	streamData->length = 0;
 	streamData->capacity = blockSize;
 
-	// create stream
-	HtmlStream stream = HtmlCreateStreamEmpty();
-	stream.data = streamData;
-	stream.destroy = (HtmlCallbackDestroy)HtmlLibDestroyStringStream;
+	return HtmlLibInitStreamString(streamData);
+}
 
-	stream.putchar = (HtmlCallbackPutchar)HtmlLibPutcharToStringStream;
-	stream.write = (HtmlCallbackWrite)HtmlLibWriteStringStream;
+HtmlStream HtmlCreateStreamString(char* str) {
+	HtmlHandleEmptyStringError(str, HtmlCreateStreamEmpty());
 
-	return stream;
+	// create streamData //
+	HtmlStreamString* streamData = (HtmlStreamString*)malloc(sizeof(HtmlStreamString));
+	HtmlHandleOutOfMemoryError(streamData, HtmlCreateStreamEmpty());
+
+	// Initialize streamData
+	*streamData = (HtmlStreamString){(char*)str, 0, strlen(str), streamData->length + 1};
+
+	return HtmlLibInitStreamString(streamData);
 }
 
 
@@ -395,10 +490,10 @@ HtmlStream HtmlCreateStreamStringBuffered(size_t blockSize) {
 // get
 
 const char* HtmlGetStreamString(HtmlStream* stream) {
-	HtmlHandleNullError(stream, NULL);
-	HtmlHandleError(stream->destroy, NULL, "not a string stream!");
+	HtmlHandleNullError(stream, "");
+	HtmlHandleError(stream->destroy == NULL, "", "error %s: not a StreamString!", __func__);
 	
-	HtmlStringStream* streamData = (HtmlStringStream*)stream->data;
+	HtmlStreamString* streamData = (HtmlStreamString*)stream->data;
 	streamData->buffer[streamData->length] = 0; // Ensure null-termination
 	
 	return streamData->buffer;
@@ -721,9 +816,16 @@ HtmlCode HtmlLibGetObjectText(HtmlObject* object, HtmlStream* stream) {
 		}
 
 		// Special case (br or hr)
-		if (strcmp(child->name, "br") == 0 || strcmp(child->name, "hr") == 0) {
+		if (strcmp(child->name, "br") == 0) {
 			// Write a newline for <br> and <hr> tags
-			if (stream->putchar(stream->data, '\n')) {
+			if (stream->putchar('\n', stream->data)) {
+				return HTML_OUT_OF_MEMORY;
+			}
+			continue;
+		}
+		if (strcmp(child->name, "hr") == 0) {
+			// Write a newline for <br> and <hr> tags
+			if (stream->write((void*)"\n\n", 2, 1, stream->data) != 2) {
 				return HTML_OUT_OF_MEMORY;
 			}
 			continue;

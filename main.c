@@ -40,17 +40,20 @@ void PrintObjectStructure(HtmlObject* object) {
 
 
 int main(int argc, char** argv) {
-	HtmlObject* document = CreateSampleDocument();
+	CURL* curl = curl_easy_init();
+	
+	HtmlObject* document = HtmlReadObjectFromCurl(curl, "https://www.google.com/");
+	fprintf(stderr, "debug!\n");
 
-	HtmlStream stream = HtmlCreateStreamStringBuffered(128);
+	HtmlStream stream = HtmlCreateStreamBuffer(100);
 	HtmlWriteObjectToStream(document, &stream);
 
-	HtmlStringStream* streamData = (HtmlStringStream*)stream.data;
-	streamData->buffer[streamData->length] = '\0'; // Null-terminate the string
-	printf("HTML Output:\n%s\n", ((HtmlStringStream*)stream.data)->buffer);
+	printf("HTML Output:\n", HtmlGetStreamString(&stream));
 	
+	PrintObjectStructure(document);
 	HtmlDestroyStream(&stream);
 	HtmlDestroyObject(document);
+	curl_easy_cleanup(curl);
 	return 0;
 }
 
