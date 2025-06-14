@@ -208,7 +208,6 @@ bool HtmlNextAttribute(HtmlAttributeIterator* iter, const char** attrName, const
 	if (iter->now != NULL) {
 		iter->next = iter->now->next;
         
-		printf("HtmlNextAttribute: %s = %s\n", iter->now->name, iter->now->value); // Debug output
         *attrName = iter->now->name;
         *attrValue = iter->now->value;
 	}
@@ -295,11 +294,14 @@ typedef struct HtmlStringStream {
 
 // Basic methods
 
-#define HtmlCreateStreamEmpty() {0}
+#define HtmlCreateStreamEmpty() (HtmlStream){0}
 
-#define HtmlDestroyStream(stream) \
-	if (stream && stream->destroy) stream->destroy(stream->data);
-
+void HtmlDestroyStream(HtmlStream* stream) {
+	if (stream && stream->destroy) {
+		stream->destroy(stream->data);
+		stream->data = NULL;
+	}
+}
 
 #define HtmlIsStreamReadable(stream) (stream != NULL && stream->getchar != NULL && stream->read)
 #define HtmlIsStreamWritable(stream) (stream != NULL && stream->putchar != NULL && stream->write)
@@ -309,6 +311,8 @@ typedef struct HtmlStringStream {
 
 
 // string stream
+
+
 
 int HtmlLibPutcharToStringStream(HtmlStringStream* stream, int c) {
 	if (stream->length + 1 >= stream->capacity) {
@@ -356,18 +360,20 @@ void HtmlLibDestroyStringStream(HtmlStringStream* streamData) {
 	}
 }
 
-HtmlStream HtmlCreateStreamString(size_t blockSize) {
-	// create stream data
+HtmlStream HtmlCreateStreamStringBuffered(size_t blockSize) {
+	// create streamData //
 	HtmlStringStream* streamData = (HtmlStringStream*)malloc(sizeof(HtmlStringStream));
-	if (streamData == NULL) {
-		free(buffer);
-		return (HtmlStream){0};
-	}
+	HtmlHandleOutOfMemoryError(streamData, HtmlCreateStreamEmpty());
 
+	// Initialize streamData
 	streamData->buffer = (char*)malloc(blockSize);
-	HtmlHandleOutOfMemoryError(streamData->buffer, (HtmlStream){0});
+	if (streamData->buffer == NULL) {
+		free(streamData);
+		HtmlHandleOutOfMemoryError(NULL, HtmlCreateStreamEmpty());
+	}
 	streamData->buffer[0] = 0;
-
+	
+	// other streamData
 	streamData->length = 0;
 	streamData->capacity = blockSize;
 
@@ -378,35 +384,6 @@ HtmlStream HtmlCreateStreamString(size_t blockSize) {
 
 	stream.putchar = (HtmlCallbackPutchar)HtmlLibPutcharToStringStream;
 	stream.write = (HtmlCallbackWrite)HtmlLibWriteStringStream;
-
-	return stream;
-}
-
-
-
-
-// file stream
-
-HtmlStream HtmlCreateStreamFileObject(FILE* file) {
-	HtmlHandleNullError(file, HtmlCreateStreamEmpty());
-
-	HtmlStream stream = HtmlCreateStream();
-	stream->data = file;
-
-	stream->putchar = fputc;
-	stream->write = fwrite;
-	stream->getchar = fgetc;
-	stream->read = fread;
-	stream->seek = fseek;
-	return stream;
-}
-
-HtmlStream HtmlCreateStreamFile(const char* filename) {
-	HtmlHandleEmptyStringError(filename, HtmlCreateStreamEmpty());
-
-	FILE* file = fopen(filename, "r+");
-	HtmlStream stream = HtmlCreateStreamFileObject(file);
-	stream->destroy = fclose;
 
 	return stream;
 }
@@ -429,6 +406,32 @@ const char* HtmlGetStreamString(HtmlStream* stream) {
 
 
 
+
+// file stream
+
+HtmlStream HtmlCreateStreamFileObject(FILE* file) {
+	HtmlHandleNullError(file, HtmlCreateStreamEmpty());
+
+	HtmlStream stream = HtmlCreateStreamEmpty();
+	stream.data = file;
+
+	stream.putchar = (HtmlCallbackPutchar)fputc;
+	stream.write = (HtmlCallbackWrite)fwrite;
+	stream.getchar = (HtmlCallbackGetchar)fgetc;
+	stream.read = (HtmlCallbackRead)fread;
+	stream.seek = (HtmlCallbackSeek)fseek;
+	return stream;
+}
+
+HtmlStream HtmlCreateStreamFile(const char* filename, const char* mode) {
+	HtmlHandleEmptyStringError(filename, HtmlCreateStreamEmpty());
+
+	FILE* file = fopen(filename, mode);
+	HtmlStream stream = HtmlCreateStreamFileObject(file);
+	stream.destroy = (HtmlCallbackDestroy)fclose;
+
+	return stream;
+}
 
 
 
@@ -720,7 +723,7 @@ HtmlCode HtmlLibGetObjectText(HtmlObject* object, HtmlStream* stream) {
 		// Special case (br or hr)
 		if (strcmp(child->name, "br") == 0 || strcmp(child->name, "hr") == 0) {
 			// Write a newline for <br> and <hr> tags
-			if (stream->write("\n", 1, 1, stream->data) != 1) {
+			if (stream->putchar(stream->data, '\n')) {
 				return HTML_OUT_OF_MEMORY;
 			}
 			continue;

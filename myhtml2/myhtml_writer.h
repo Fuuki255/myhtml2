@@ -15,25 +15,25 @@ HtmlCode HtmlLibWriteFormattedStringToStream(const char* s, HtmlStream* stream) 
 	for (const char* p = s; (c = *p); p++) {
         switch (c) {
             case '\\':
-                stream->write("\\", 2, 1, stream->data);
+                stream->write((void*)"\\", 2, 1, stream->data);
                 continue;
             case '\"':
-                stream->write("\\\"", 2, 1, stream->data);
+                stream->write((void*)"\\\"", 2, 1, stream->data);
                 continue;
             case '\'':
-                stream->write("\\\'", 2, 1, stream->data);
+                stream->write((void*)"\\\'", 2, 1, stream->data);
                 continue;
             case '\t':
-                stream->write("\\t", 2, 1, stream->data);
+                stream->write((void*)"\\t", 2, 1, stream->data);
                 continue;
             case '\r':
-                stream->write("\\r", 2, 1, stream->data);
+                stream->write((void*)"\\r", 2, 1, stream->data);
                 continue;
             case '\n':
-                stream->write("\\n", 2, 1, stream->data);
+                stream->write((void*)"\\n", 2, 1, stream->data);
                 continue;
             case '\a':
-                stream->write("\\a", 2, 1, stream->data);
+                stream->write((void*)"\\a", 2, 1, stream->data);
                 continue;
             default:
                 stream->putchar(stream->data, c);
@@ -48,15 +48,15 @@ HtmlCode HtmlLibWriteFormattedStringToStream(const char* s, HtmlStream* stream) 
 
 // Write Attributes
 HtmlCode HtmlLibWriteAttributesToStream(HtmlObject* object, HtmlStream* stream) {
-    int c;
 	const char* attrName, *attrValue;
+
     HtmlForeachObjectAttributes(object, attrName, attrValue) {
         stream->putchar(stream->data, ' ');
         stream->write((void*)attrName, strlen(attrName), 1, stream->data);
 
 		if (attrValue != NULL) {
 			stream->putchar(stream->data, '=');
-			HtmlLibFormattedStringToStream(attrValue, stream);
+			HtmlLibWriteFormattedStringToStream(attrValue, stream);
 		}
     }
     return HTML_OK;
@@ -68,16 +68,16 @@ HtmlCode HtmlLibWriteObjectToStream(HtmlObject* object, HtmlStream* stream) {
     const char* innerText;
 	
     if (object->type == HTML_TYPE_COMMENT) {
-        stream->write("<!--", 4, 1, stream->data);
+        stream->write((void*)"<!--", 4, 1, stream->data);
 		
 		innerText = HtmlGetObjectInnerText(object);
         stream->write((void*)innerText, strlen(innerText), 1, stream->data);
 		
-		stream->write("-->", 3, 1, stream->data);
+		stream->write((void*)"-->", 3, 1, stream->data);
         return HTML_OK;
     }
     if (object->type == HTML_TYPE_DOCTYPE) {
-        stream->write("<!DOCTYPE ", 11, 1, stream->data);
+        stream->write((void*)"<!DOCTYPE ", 11, 1, stream->data);
 		
 		innerText = HtmlGetObjectInnerText(object);
         stream->write((void*)innerText, strlen(innerText), 1, stream->data);
@@ -87,7 +87,7 @@ HtmlCode HtmlLibWriteObjectToStream(HtmlObject* object, HtmlStream* stream) {
     }
     if (object->type == HTML_TYPE_DOCUMENT) {
         HtmlForeachObjectChildren(object, child) {
-            HtmlWriteObjectToStream(child, stream);
+            HtmlLibWriteObjectToStream(child, stream);
         }
         return HTML_OK;
     }
@@ -110,19 +110,21 @@ HtmlCode HtmlLibWriteObjectToStream(HtmlObject* object, HtmlStream* stream) {
 
     // Write Children
     HtmlForeachObjectChildren(object, child) {
-    HtmlWriteObjectToStream(child, stream);
+        HtmlLibWriteObjectToStream(child, stream);
     
-    // Write Closing
-    if (child->type != HTML_TYPE_SINGLE)
-        stream->write("</", 2, 1, stream->data);
-        stream->write((void*)name, strlen(name), 1, stream->data);
-        stream->putchar(stream->data, '>');
-    }
+        // Write Closing
+        if (child->type != HTML_TYPE_SINGLE) {
+            stream->write((void*)"</", 2, 1, stream->data);
+            stream->write((void*)name, strlen(name), 1, stream->data);
+            stream->putchar(stream->data, '>');
+        }
 
-    // Write interval
-    if (object->afterText) {
-        stream->write((void*)object->afterText, strlen(object->afterText), 1, stream->data);
+        // Write interval
+        if (object->afterText) {
+            stream->write((void*)object->afterText, strlen(object->afterText), 1, stream->data);
+        }
     }
+    
     return HTML_OK;
 }
 
@@ -140,11 +142,11 @@ HtmlCode HtmlLibWriteObjectToStream(HtmlObject* object, HtmlStream* stream) {
 
 
 
-HtmlCode HtmlWriteObjectToStream(HtmlObjec* object, HtmlStream* stream) {
+HtmlCode HtmlWriteObjectToStream(HtmlObject* object, HtmlStream* stream) {
     HtmlHandleNullError(object, HTML_NULL_POINTER);
     HtmlHandleNullError(stream, HTML_NULL_POINTER);
 
-    retur HtmlLibWriteObjectToStream(object, stream);
+    return HtmlLibWriteObjectToStream(object, stream);
 }
 
 
@@ -177,10 +179,16 @@ HtmlCode HtmlWriteObjectToFile(HtmlObject* object, const char* filename) {
 // convert HtmlObject to html string
 // ! you should free return string after used
 const char* HtmlWriteObjectToString(HtmlObject* object) {
-    HtmlHandleNullError(object, HTML_NULL_POINTER);
+    HtmlHandleNullError(object, NULL);
 
-    HtmlStream stream = HtmlCreateStreamString(128);
-    return HtmlLibWriteObjectToStream(object, &stream);
+    HtmlStream stream = HtmlCreateStreamStringBuffered(128);
+    HtmlCode ret = HtmlLibWriteObjectToStream(object, &stream);
+    if (ret != HTML_OK) {
+        printf("%s: Error writing object to stream: %d\n", __func__, ret);
+        // just report
+    }
+
+    return HtmlGetStreamString(&stream);
 }
 
 
