@@ -1,7 +1,7 @@
 #ifndef _MYHTML_WRITER_H_
 #define _MYHTML_WRITER_H_
 
-#ifndef _MYHTML_H_
+#ifndef _MYHTML_OBJECT_H_
 #include "myhtml.h"
 #endif
 
