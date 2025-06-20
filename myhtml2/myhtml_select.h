@@ -7,7 +7,10 @@
 
 
 typedef struct HtmlSelect {
-    char* pattern;
+    char* _name;
+    char* _class;
+    char* _id;
+
     int targetIndex;
 
     HtmlSelect* next;
@@ -32,6 +35,8 @@ HtmlSelect* HtmlCreateSelect(const char* patterns) {
     int c;
 
     while ((c = *patterns)) {
+        // cleaning //
+
         // clear spaces
         while (c != 0 && isspace(c)) {
             c = *(++patterns);
@@ -42,17 +47,11 @@ HtmlSelect* HtmlCreateSelect(const char* patterns) {
             return first;
         }
 
-        // malloc HtmlSelect
-        HtmlSelect* select = (HtmlSelect*)malloc(sizeof(HtmlSelect));
-        HtmlHandleOutOfMemoryError(select, first);
+        // making HtmlSelect //
 
-        select->pattern = (char*)malloc(18);
-        if (select->pattern == NULL) {
-            free(select);
-            return first;
-        }
-        int length = 0;
-        int capacity = 18;
+        // malloc HtmlSelect
+        HtmlSelect* select = (HtmlSelect*)calloc(sizeof(HtmlSelect));
+        HtmlHandleOutOfMemoryError(select, first);
 
         // setup relationship
         if (last != NULL) {
@@ -62,16 +61,37 @@ HtmlSelect* HtmlCreateSelect(const char* patterns) {
             first = select;
         }
 
-        // read pattern
-        while ((c = *patterns)) {
-            // special chars
+        // read pattern //
+        char** write = &select->_name;
+        int writeLength, writeCapacity = 0;
+
+        c = *patterns;
+        while (c != 0) {
+            // clearing spaces
             if (isspace(c)) {
-                patterns++;
+                c = *(++patterns);
                 break;
             }
-            if (c == '.' || c == '#') {
-                break;
+
+            // switch reading type
+            if (c == '.') {
+                if (selcet->_class != NULL) {
+                    fprintf(stderr, "warning %s: pattern overwriting class select!\n", __func__);
+                    free(select->_class);
+                }
+                write = &select->_class;
+                continue;
             }
+            if (c == '#') {
+                if (selcet->_id != NULL) {
+                    fprintf(stderr, "warning %s: pattern overwriting id select!\n", __func__);
+                    free(select->_id);
+                }
+                write = &select->_id;
+                continue;
+            }
+
+            // targeted index and close
             if (c == '[') {
                 sscanf(++patterns, "%d", &select->targetIndex);
 

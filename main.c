@@ -43,7 +43,6 @@ int main(int argc, char** argv) {
 	CURL* curl = curl_easy_init();
 	
 	HtmlObject* document = HtmlReadObjectFromCurl(curl, "https://www.google.com/");
-	fprintf(stderr, "debug!\n");
 
 	HtmlStream stream = HtmlCreateStreamBuffer(100);
 	HtmlWriteObjectToStream(document, &stream);
@@ -51,6 +50,8 @@ int main(int argc, char** argv) {
 	printf("HTML Output:\n", HtmlGetStreamString(&stream));
 	
 	PrintObjectStructure(document);
+
+	// clear
 	HtmlDestroyStream(&stream);
 	HtmlDestroyObject(document);
 	curl_easy_cleanup(curl);
