@@ -106,22 +106,22 @@ HtmlSelect* HtmlCreateSelect(const char* patterns) {
             // expand string
             if (length + 1 >= capacity) {
                 int newCapacity = capacity + 18;
-                char* newBuffer = (char*)realloc(select->pattern, newCapacity);
+                char* newBuffer = (char*)realloc(*write, newCapacity);
 
+                //! error: failed to allocate memory
                 if (newBuffer == NULL) {
                     free(select->pattern);
                     free(select);
                     last->next = NULL;
-                    fprintf(stderr, "error %s: Out of memory\n", __func__);
-                    return first;
+                    HtmlHandleOutOfMemoryError(true, first);
                 }
 
-                select->pattern = newBuffer;
+                *write = newBuffer;
                 capacity = newCapacity;
             }
 
             // write char
-            select->pattern[length++] = c;
+            (*write)[length++] = c;
         }
 
         // add '\0' back
