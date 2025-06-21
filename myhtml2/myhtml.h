@@ -7,7 +7,7 @@
 #ifndef _MYHTML_WRITER_H_
 #include "myhtml_writer.h"
 #endif
-#ifndef _MYHTML_SEARCH_H_
-#include "myhtml_search.h"
+#ifndef _MYHTML_SELECT_H_
+#include "myhtml_select.h"
 #endif
 

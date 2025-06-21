@@ -103,8 +103,15 @@ typedef struct HtmlObject {
 
 // Useful Macros //
 
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#ifndef MIN
+	#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#endif
+#ifndef MAX
+	#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#endif
+
+
+#define HtmlLibLowerChar(c)	(c >= 'A' && c <= 'Z' ? (c + 32) : c)
 
 
 #define HtmlLibDestroyPointer(p) \
@@ -119,6 +126,24 @@ typedef struct HtmlObject {
 		var = (char*)malloc(strlen(text) + 1);\
 		strcpy(var, text);\
 	}
+
+
+void HtmlLibSetTextLowered(char** var, const char* text) {
+	if (*var) {
+		HtmlLibDestroyPointer((*var));
+	}
+	if (text) {
+		*var = (char*)malloc(strlen(text) + 1);
+
+		int c;
+		char* p = *var;
+		while ((c = *text++)) {
+			*p++ = HtmlLibLowerChar(c);
+		}
+		*p++ = 0;
+	}
+}
+
 
 
 // Error Handle without debug message
@@ -138,35 +163,41 @@ typedef struct HtmlObject {
 	if (str == NULL || (str == NULL && str[0] == 0))\
         return retValue;
 
+#define HtmlLogWarning(...)
+
 
 // Error Handle with debug message
 #else
-#define HtmlHandleError(check, retValue, ...) \
+#define HtmlHandleError(check, retValue, fmt, ...) \
 	if (check) {\
-		fprintf(stderr, __VA_ARGS__);\
+		fprintf(stderr, "error %s: " fmt "\n", __func__, ##__VA_ARGS__);\
 		return retValue;\
 	}
 
 
 #define HtmlHandleNullError(parameter, retValue) \
 	if (parameter == NULL) {\
-		fprintf(stderr, "%s: Parameter '%s' couldn't be NULL!\n", __func__, #parameter);\
+		fprintf(stderr, "error %s: Parameter '%s' couldn't be NULL!\n", __func__, #parameter);\
 		return retValue;\
 	}
 
 
 #define HtmlHandleOutOfMemoryError(pointer, retValue) \
     if (pointer == NULL) {\
-        fprintf(stderr, "%s: Out of memory!\n", __func__);\
+        fprintf(stderr, "error %s: Out of memory!\n", __func__);\
         return retValue;\
     }
 
 
 #define HtmlHandleEmptyStringError(str, retValue) \
 	if (str == NULL || (str == NULL && str[0] == 0)) {\
-		fprintf(stderr, "%s: Empty string as parameter!\n", __func__);\
+		fprintf(stderr, "error %s: Empty string as parameter!\n", __func__);\
         return retValue;\
     }
+
+
+#define HtmlLogWarning(fmt, ...) \
+	fprintf(stderr, "warning %s: " fmt "\n", __func__, ##__VA_ARGS__);
 
 
 #endif
@@ -363,7 +394,7 @@ int HtmlLibGetcharFromStreamString(HtmlStreamString* stream) {
 size_t HtmlLibReadFromStreamString(void* content, size_t length, size_t size, HtmlStreamString* streamData) {
 	size_t total = length * size;
 	size_t less = streamData->length - streamData->position;
-	total = MIN(total, streamData->length - streamData->position);
+	total = MIN(total, less);
 
 	memcpy(content, streamData->buffer + streamData->position, total);
 	streamData->position += total;
@@ -451,25 +482,26 @@ void HtmlLibDestroyStringStream(HtmlStreamString* streamData) {
 
 HtmlStream HtmlCreateStreamBuffer(size_t blockSize) {
 	// create streamData //
-	HtmlStreamString* streamData = (HtmlStreamString*)malloc(sizeof(HtmlStreamString));
-	HtmlHandleOutOfMemoryError(streamData, HtmlCreateStreamEmpty());
+	HtmlStreamString* streamString = (HtmlStreamString*)malloc(sizeof(HtmlStreamString));
+	HtmlHandleOutOfMemoryError(streamString, HtmlCreateStreamEmpty());
 
 	// Initialize streamData
-	streamData->buffer = (char*)malloc(blockSize);
-	if (streamData->buffer == NULL) {
-		free(streamData);
+	streamString->buffer = (char*)malloc(blockSize);
+	if (streamString->buffer == NULL) {
+		free(streamString);
 		HtmlHandleOutOfMemoryError(NULL, HtmlCreateStreamEmpty());
 	}
-	streamData->buffer[0] = 0;
+	streamString->buffer[0] = 0;
 	
 	// other streamData
-	streamData->position = 0;
-	streamData->length = 0;
-	streamData->capacity = blockSize;
+	streamString->position = 0;
+	streamString->length = 0;
+	streamString->capacity = blockSize;
 
-	return HtmlLibInitStreamString(streamData);
+	return HtmlLibInitStreamString(streamString);
 }
 
+// create a HtmlStream almost for read string
 HtmlStream HtmlCreateStreamString(char* str) {
 	HtmlHandleEmptyStringError(str, HtmlCreateStreamEmpty());
 
@@ -478,7 +510,8 @@ HtmlStream HtmlCreateStreamString(char* str) {
 	HtmlHandleOutOfMemoryError(streamData, HtmlCreateStreamEmpty());
 
 	// Initialize streamData
-	*streamData = (HtmlStreamString){(char*)str, 0, strlen(str), streamData->length + 1};
+	streamData->length = strlen(str);
+	*streamData = (HtmlStreamString){(char*)str, 0, streamData->length, streamData->length + 1};
 
 	return HtmlLibInitStreamString(streamData);
 }
@@ -491,18 +524,18 @@ HtmlStream HtmlCreateStreamString(char* str) {
 
 const char* HtmlGetStreamString(HtmlStream* stream) {
 	HtmlHandleNullError(stream, "");
-	HtmlHandleError(stream->destroy == NULL, "", "error %s: not a StreamString!", __func__);
+	HtmlHandleError(stream->destroy == NULL, "", "not a StreamString!");
 	
-	HtmlStreamString* streamData = (HtmlStreamString*)stream->data;
-	streamData->buffer[streamData->length] = 0; // Ensure null-termination
+	HtmlStreamString* streamString = (HtmlStreamString*)stream->data;
+	streamString->buffer[streamString->length] = 0; // Ensure null-termination
 	
-	return streamData->buffer;
+	return streamString->buffer;
 }
 
 
 
 
-// file stream
+// StreamFile
 
 HtmlStream HtmlCreateStreamFileObject(FILE* file) {
 	HtmlHandleNullError(file, HtmlCreateStreamEmpty());
@@ -515,6 +548,7 @@ HtmlStream HtmlCreateStreamFileObject(FILE* file) {
 	stream.getchar = (HtmlCallbackGetchar)fgetc;
 	stream.read = (HtmlCallbackRead)fread;
 	stream.seek = (HtmlCallbackSeek)fseek;
+	stream.tell = (HtmlCallbackTell)ftell;
 	return stream;
 }
 
@@ -543,7 +577,7 @@ HtmlObject* HtmlLibCreateObject(HtmlObjectType type, const char* name, HtmlObjec
 
 	// set value
 	object->type = type;
-	HtmlSetText(object->name, name);
+	HtmlLibSetTextLowered(&object->name, name);
 	
 	// set relationship
 	if (parent != NULL) {
@@ -863,7 +897,7 @@ HtmlCode HtmlGetObjectText(HtmlObject* object, HtmlStream* stream) {
 
 	// Check if stream is writeable
 	HtmlHandleError(stream->write == NULL, HTML_STREAM_NOT_WRITEABLE,
-		"%s: HtmlStream is not writeable, please setup the write callback function!", __func__);
+		"HtmlStream is not writeable, please setup the write callback function!");
 	
 	return HtmlLibGetObjectText(object, stream);
 }
@@ -877,7 +911,7 @@ const char* HtmlGetObjectAfterText(HtmlObject* object) {
 
 const char* HtmlGetObjectAttributeValue(HtmlObject* object, const char* attrName) {
 	HtmlHandleNullError(object, NULL);
-	HtmlHandleNullError(attrName, NULL);
+	HtmlHandleEmptyStringError(attrName, NULL);
 
 	// Search for the attribute
 	const char* _attrName, *_attrValue;
@@ -886,7 +920,7 @@ const char* HtmlGetObjectAttributeValue(HtmlObject* object, const char* attrName
 			return _attrValue;
 		}
 	}
-	return NULL; // Attribute not found
+	return ""; // Attribute not found
 }
 
 HtmlObject* HtmlGetObjectFirstChild(HtmlObject* object) {

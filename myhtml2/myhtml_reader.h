@@ -11,12 +11,6 @@
 
 
 
-// useful macros for HTML parsing
-
-
-#define HtmlLibLowerChar(c)	(c >= 'A' && c <= 'Z' ? (c + 32) : c)
-
-
 
 
 bool HtmlLibIsStringIn(const char* str, ...) {
@@ -176,14 +170,13 @@ int HtmlLibParseAttributes(HtmlObject* object, HtmlStream* stream, int c) {
 
 HtmlObject* HtmlLibReadObjectFromStream(HtmlStream* stream) {
 	HtmlObject* doc = HtmlCreateObjectDocument();
-    HtmlHandleOutOfMemoryError(doc, NULL);
 	
 	HtmlObject* current = doc;
 	HtmlStreamString buffer1;
 	int c;
 	size_t start;
 	
-	while (1) {
+	while (true) {
 		// Read char
 		start = stream->tell(stream->data);
 		c = stream->getchar(stream->data);
@@ -200,7 +193,7 @@ HtmlObject* HtmlLibReadObjectFromStream(HtmlStream* stream) {
 		
 		// Insert Text
 		if (c != '<') {
-			stream->seek(stream, start, SEEK_SET);
+			stream->seek(stream->data, start, SEEK_SET);
 			goto InsertText;
 		}
 		
@@ -219,12 +212,10 @@ HtmlObject* HtmlLibReadObjectFromStream(HtmlStream* stream) {
 				buffer1.length = 0;
 				c = stream->getchar(stream->data);
 
-				while (1) {
+				while (true) {
 					if (c == -1) {
-						fprintf(stderr, "error %s: html not expected end! (position: %lu)\n",
-                                __func__, stream->tell(stream->data));
 						free(buffer1.buffer);
-						return doc;
+						HtmlHandleError(true, doc, "html not expected end! (position %lu)", stream->tell(stream->data));
 					}
 
 					HtmlLibPutcharToStreamString(HtmlLibLowerChar(c), &buffer1);
@@ -289,19 +280,19 @@ HtmlObject* HtmlLibReadObjectFromStream(HtmlStream* stream) {
 			buffer1.buffer[buffer1.length] = 0; // Null-terminate the string
 			
 			// Find return element
-			HtmlObject* record = current;
-			while (record != doc && strcmp(record->name, buffer1.buffer) != 0) {
-				record = record->parent;
+			HtmlObject* backTag = current;
+			while (backTag != doc && strcmp(backTag->name, buffer1.buffer) != 0) {
+				backTag = backTag->parent;
 			}
 
-			// ERROR: Not exists element name
-			if (record == doc) {
-				printf("warning %s: html closing without exists element! (position: %lu)\n", __func__, stream->tell(stream->data));
+			// warning: Not exists element name
+			if (backTag == doc) {
+				HtmlLogWarning("'%s' tag exit without closing! (position: %lu)", HtmlGetObjectName(current), stream->tell(stream->data));
 				continue;
 			}
 
 			// Return
-			current = record->parent;
+			current = backTag->parent;
 			continue;
 		}
 		
@@ -445,15 +436,13 @@ HtmlObject* HtmlReadObjectFromFile(const char* filename) {
 	HtmlHandleEmptyStringError(filename, NULL);
 
 	FILE* file = fopen(filename, "r");
-	HtmlHandleError(file == NULL, NULL, "error %s: failed to open '%s' in read mode", __func__, filename);
+	HtmlHandleError(file == NULL, NULL, "failed to open '%s' in read mode", filename);
 
 	HtmlStream stream = HtmlCreateStreamFileObject(file);
 	HtmlObject* doc = HtmlLibReadObjectFromStream(&stream);
 	fclose(file);
 
-	if (doc == NULL) {
-		fprintf(stderr, "Error: Failed to parse HTML stream.\n");
-	}
+    HtmlHandleError(doc == NULL, NULL, "failed to parse html file");
 	return doc;
 }
 

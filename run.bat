@@ -3,7 +3,7 @@
 clear
 
 :: compile
-g++ main.c -o main -Wall
+g++ main.c -o main -Wall -lcurl
 
 :: compile success: Run program
 if %errorlevel% equ 0 (

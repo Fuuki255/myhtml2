@@ -77,7 +77,7 @@ HtmlCode HtmlLibWriteObjectToStream(HtmlObject* object, HtmlStream* stream) {
         return HTML_OK;
     }
     if (object->type == HTML_TYPE_DOCTYPE) {
-        stream->write((void*)"<!DOCTYPE ", 11, 1, stream->data);
+        stream->write((void*)"<!DOCTYPE ", 10, 1, stream->data);
 		
 		innerText = HtmlGetObjectInnerText(object);
         stream->write((void*)innerText, strlen(innerText), 1, stream->data);
@@ -175,18 +175,45 @@ HtmlCode HtmlWriteObjectToFile(HtmlObject* object, const char* filename) {
 
 
 // convert HtmlObject to html string
-// ! you should free return string after used
+// you don't need to destroy the result string as it will destroy with object destroying
 const char* HtmlWriteObjectToString(HtmlObject* object) {
-    HtmlHandleNullError(object, NULL);
+    HtmlHandleNullError(object, "");
 
+    // create StreamBuffer that write after object->name
     HtmlStream stream = HtmlCreateStreamBuffer(4096);
-    HtmlCode ret = HtmlLibWriteObjectToStream(object, &stream);
-    if (ret != HTML_OK) {
-        printf("%s: Error writing object to stream: %d\n", __func__, ret);
-        // just report
+
+    int resultOffset = 1;
+    if (object->name) {
+        resultOffset += strlen(object->name);
+        stream.write(object->name, resultOffset, 1, stream.data);
+    }
+    else {
+        stream.putchar('\0', stream.data);
     }
 
-    return HtmlGetStreamString(&stream);
+    // write string
+    HtmlCode ret = HtmlLibWriteObjectToStream(object, &stream);
+    if (ret != HTML_OK) {
+        HtmlDestroyStream(&stream);
+
+        HtmlHandleError(true, "", "error writing object (%d)", ret);
+    }
+
+    // store result to object->name
+    if (object->name) {
+        free(object->name);
+    }
+
+    HtmlStreamString* streamString = (HtmlStreamString*)stream.data;
+    streamString->buffer[streamString->length] = 0;
+
+    object->name = streamString->buffer;
+
+    // free HtmlStreamString without its buffer
+    free(stream.data);
+
+    // return result
+    return object->name + resultOffset;
 }
 
 
