@@ -52,21 +52,13 @@ HtmlSelect* HtmlCreateSelect(const char* patterns) {
         HtmlSelect* select = (HtmlSelect*)calloc(1, sizeof(HtmlSelect));
         HtmlHandleOutOfMemoryError(select, first);
 
-        select->_name = (char*)malloc(16);
-
-        if (select->_name == NULL) {
-            free(select);
-            return first;
-        }
-
-
         if (first == NULL) {
             first = select;
         }
         // the `last` variable will set late
 
         // read pattern //
-        char** write = &select->_name;
+        char** write = NULL;
         int writeLength = 0;
         int writeCapacity = 16;
 
@@ -82,16 +74,24 @@ HtmlSelect* HtmlCreateSelect(const char* patterns) {
 
             // switch write out
             if (c == '.') {
-                (*write)[writeLength] = 0;
+                if (write) {
+                    (*write)[writeLength] = 0;
+                }
                 write = &select->_class;
                 goto SetupWrite;
             }
             if (c == '#') {
-                (*write)[writeLength] = 0;
+                if (write) {
+                    (*write)[writeLength] = 0;
+                }
                 write = &select->_id;
                 goto SetupWrite;
             }
-            
+            if (write == NULL) {
+                write = &select->_name;
+                goto SetupWrite;
+            }
+
             // write char to `write`
             if (writeLength + 1 >= writeCapacity) {
                 writeCapacity = writeCapacity + 16;
