@@ -1,3 +1,4 @@
+#include <curl/curl.h>
 #include "myhtml2/myhtml.h"
 
 
@@ -40,13 +41,22 @@ void PrintObjectStructure(HtmlObject* object) {
 
 
 int main(int argc, char** argv) {
-	HtmlObject* doc = HtmlReadObjectFromFile("Samples/example.html");
-	printf("Document:\n%s\n", HtmlWriteObjectToString(doc));
+	CURL* curl = curl_easy_init();
+	if (curl == NULL) {
+		fprintf(stderr, "Error: Failed to initialize CURL.\n");
+		return -1;
+	}
 
-	HtmlObject* result = HtmlFindObject(doc, ".main");
-	
-	printf("result: %s\n", HtmlWriteObjectToString(result));
+	HtmlObject* doc = HtmlReadObjectFromCURL(curl, "https://www.example.com");
+	printf("Document:\n%s\n\n", HtmlWriteObjectToString(doc));
 
+	HtmlObject* tagBody = HtmlFindObject(doc, "body");
+
+	HtmlStream stream = HtmlCreateStreamBuffer(1024);
+	HtmlGetObjectText(doc, &stream);
+	printf("Body:\n%s\n", HtmlGetStreamString(&stream));
+
+	HtmlDestroyStream(&stream);
 	HtmlDestroyObject(doc);
 	return 0;
 }

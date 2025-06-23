@@ -111,7 +111,9 @@ typedef struct HtmlObject {
 #endif
 
 
-#define HtmlLibLowerChar(c)	(c >= 'A' && c <= 'Z' ? (c + 32) : c)
+int HtmlLibLowerChar(int c)	{
+	return (c >= 'A' && c <= 'Z') ? (c + 32) : c;
+}
 
 
 #define HtmlLibDestroyPointer(p) \

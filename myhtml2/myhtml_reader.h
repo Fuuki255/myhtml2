@@ -160,6 +160,14 @@ int HtmlLibParseAttributes(HtmlObject* object, HtmlStream* stream, int c) {
 
 		attr->value = (char*)HtmlGetStreamString(&value);
 	}
+
+	if (c == '/') {
+		c = stream->getchar(stream->data);
+		if (c != '>') {
+			HtmlLogWarning("tag attribute not expected end! (position: %lu)", stream->tell(stream->data));
+			return -1; // Error: Not expected end
+		}
+	}
 	return c;
 }
 
@@ -455,14 +463,15 @@ HtmlObject* HtmlReadObjectFromFile(const char* filename) {
 
 // libcurl extension
 
-#include <curl/curl.h>
+#ifdef CURLINC_CURL_H
 
-HtmlObject* HtmlReadObjectFromCurl(CURL* curl, const char* url) {
+HtmlObject* HtmlReadObjectFromCURL(CURL* curl, const char* url) {
 	HtmlHandleNullError(curl, NULL);
 	HtmlHandleEmptyStringError(url, NULL);
 
 	// Set URL
 	HtmlStream stream = HtmlCreateStreamBuffer(1024);
+	HtmlHandleError(stream.data == NULL, NULL, "failed to create stream buffer!");
 
 	curl_easy_setopt(curl, CURLOPT_URL, url);
 	curl_easy_setopt(curl, CURLOPT_WRITEDATA, stream.data);
@@ -471,19 +480,21 @@ HtmlObject* HtmlReadObjectFromCurl(CURL* curl, const char* url) {
 	// perform the request
 	CURLcode res = curl_easy_perform(curl);
 	if (res != CURLE_OK) {
-		fprintf(stderr, "error %s: failed to request url (%s)\n", __func__, curl_easy_strerror(res));
 		HtmlDestroyStream(&stream);
-		return NULL;
+		HtmlHandleError(true, NULL, "failed to request '%s' (%s)", url, curl_easy_strerror(res));
 	}
 
 	// Read HTML object from stream
 	HtmlObject* doc = HtmlLibReadObjectFromStream(&stream);
-	if (doc == NULL) {
-		fprintf(stderr, "Error: Failed to parse HTML stream from CURL.\n");
-	}
-	
+	HtmlDestroyStream(&stream);
+
+	// message if failed
+	HtmlHandleError(doc == NULL, NULL, "failed to parse HTML stream from CURL");
 	return doc;
 }
+
+
+#endif
 
 
 

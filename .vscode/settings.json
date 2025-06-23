@@ -17,6 +17,7 @@
         "__node_handle": "c",
         "random": "c",
         "algorithm": "c",
-        "functional": "c"
+        "functional": "c",
+        "curl.h": "c"
     }
 }
