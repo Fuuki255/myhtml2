@@ -110,9 +110,17 @@ int HtmlLibParseAttributes(HtmlObject* object, HtmlStream* stream, int c) {
 		while (isspace(c)) {
 			c = stream->getchar(stream->data);
 		}
+		if (c == '/') {
+			c = stream->getchar(stream->data);
+
+			if (c == '>') {
+				return -1;
+			}
+		}
 
 		// Create attribute
 		attr = (HtmlAttribute*)malloc(sizeof(HtmlAttribute));
+		HtmlHandleOutOfMemoryError(attr, EOF);
 		
 		attr->next = NULL;
 		attr->prev = object->lastAttribute;
@@ -159,14 +167,6 @@ int HtmlLibParseAttributes(HtmlObject* object, HtmlStream* stream, int c) {
 		}
 
 		attr->value = (char*)HtmlGetStreamString(&value);
-	}
-
-	if (c == '/') {
-		c = stream->getchar(stream->data);
-		if (c != '>') {
-			HtmlLogWarning("tag attribute not expected end! (position: %lu)", stream->tell(stream->data));
-			return -1; // Error: Not expected end
-		}
 	}
 	return c;
 }

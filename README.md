@@ -1,6 +1,6 @@
 # myhtml2
 
-C言語で書かれた軽量・高速なHTMLパーサ＆セレクタライブラリ
+C言語で書かれた軽量・高速なHTMLパーサ＆セレクタライブラリ、以前のバージョンと比べてより高速、高機能、高安定性と読みやすいなど全方位のアップグレードがあります
 
 | バージョン    | 2.0.0         |
 |:-------------|:--------------|
@@ -33,7 +33,7 @@ int main(int argc, char** argv) {
 
   // 検索1 : title
   HtmlObject* tagTitle = HtmlFindObject(doc, "title");
-  printf("Title %s\n", HtmlGetObjectInnerText(tagTitle));
+  printf("HTML %s\n", HtmlGetObjectInnerText(tagTitle));
 
   // 検索2 : <meta charset>
   HtmlObject* tagMeta = HtmlFindObject(doc, "meta");
@@ -56,11 +56,12 @@ int main(int argc, char** argv) {
   while ((object = HtmlNextSelect(&select))) {
     printf("  %s\n", HtmlWriteObjectToString(object));  // HtmlObject を HTML 文字列に変換する。戻り値は自動的に解放されるのでfree不要
   }
+  putchar('\n');
   
   HtmlDestroySelect(&select);   // HtmlSelect の使用後は削除する必要があります
 
   // 検索5 : マルチ検索2
-  HtmlArray array = HtmlFindAllObjects(doc, "p");     // HtmlSelect の結果を配列にまとめるメソッド、 出力の HtmlArray は同様に削除する必要がある
+  HtmlArray array = HtmlFindAllObjects(doc, "p", 8);     // HtmlSelect の結果を配列にまとめるメソッド、 出力の HtmlArray は同様に削除する必要がある
   
   printf("All <p> in html:\n");
   for (int i = 0; i < array.length; i++) {
