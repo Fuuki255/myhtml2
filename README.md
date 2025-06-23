@@ -84,6 +84,12 @@ int main(int argc, char** argv) {
 
 ---
 
+## インストール
+
+myhtml2 フォルダを自分のプロジェクトに加え、 `#include "myhtml2/myhtml.h"` でライブラリを導入すればいい
+
+---
+
 ## 使い方
 
 ### 1. HTMLの読み込み
