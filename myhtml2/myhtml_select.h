@@ -11,12 +11,16 @@
 
 
 typedef struct HtmlSelectPattern {
+    // word filtering
     char* _name;
     char* _class;
     char* _id;
 
+    // number [] filtering
+    bool targeted;
     int targetIndex;
 
+    // more patterns
     HtmlSelectPattern* next;
 } HtmlSelectPattern;
 
@@ -78,8 +82,11 @@ HtmlSelectPattern* HtmlLibCreateSelectPatterns(const char* patterns) {
         for (; c != 0 && !isspace(c); c = *(++patterns)) {
             // special read
             if (c == '[') {
+                // setup target
                 sscanf(++patterns, "%d", &selectPattern->targetIndex);
-                
+                selectPattern->targeted = true;
+
+                // full lessing words
                 for (; (c = *patterns) != 0 && (isspace(c) || isdigit(c) || c == ']' || c == '-'); patterns++);
 
                 break;
@@ -213,6 +220,9 @@ HtmlSelectTask* HtmlLibCreateSelectTask(HtmlSelectTask* prev, HtmlObject* object
 
 
 
+
+
+
 HtmlSelect HtmlCreateSelect(HtmlObject* object, const char* patterns) {
     HtmlHandleNullError(object, NULL);
     HtmlHandleEmptyStringError(patterns, NULL);
@@ -220,7 +230,7 @@ HtmlSelect HtmlCreateSelect(HtmlObject* object, const char* patterns) {
     HtmlSelect select = {0};
 
     // create patterns
-    select.patterns = HtmlCreatePatterns(patterns);
+    select.patterns = HtmlLibCreateSelectPatterns(patterns);
     HtmlHandleOutOfMemoryError(select.patterns, select);
 
     // set last task
@@ -233,6 +243,22 @@ HtmlSelect HtmlCreateSelect(HtmlObject* object, const char* patterns) {
     return select;
 }
 
+void HtmlDestroySelect(HtmlSelect* select) {
+    if (select == NULL) {
+        return;
+    }
+
+    HtmlLibDestroySelectPatterns(select->patterns);
+
+    HtmlSelectTask* prev;
+    while (select->lastTask) {
+        prev = select->last->prev;
+        HtmlLibDestroySelectTask(select->lastTask);
+        select->lastTask = prev;
+    }
+}
+
+
 
 HtmlObject* HtmlNextSelect(HtmlSelect* select) {
     if (select->lastTask == NULL) {
@@ -244,35 +270,22 @@ HtmlObject* HtmlNextSelect(HtmlSelect* select) {
 
     while ((task = select->lastTask)) {
         HtmlObject* child = NULL;
-        
+
         while (true) {
             child = task->IncreaseMethod(&iterator)
 
-            // if the end of child, remove task
+            // if object are no child lessing, remove the task
             if (child == NULL) {
                 HtmlLibDestroySelectTask(task);
                 select->lastTask = task->prev;
                 break;
             }
 
+            // when the pattern not final, select child who has children //
+
             if (task->pattern->next) {
                 if (child->type == HTML_TYPE_TAG) {
-                    if (HtmlLibIsObjectSuitPattern(child, task->pattern)) {
-                        if (task->index != task->pattern->targetIndex) {
-                            task->index += task->indexIncrease;
-                            continue;
-                        }
-
-                        result = HtmlLibFindObject(child, task->pattern->next);
-                        if (result) {
-                            return result;
-                        }
-                    }
-
-                    result = HtmlLibFindObject(child, task->pattern);
-                    if (result) {
-                        return result;
-                    }
+                    goto CheckTag;
                 }
                 if (child->type == HTML_TYPE_DOCUMENT) {
                     result = HtmlLibFindObject(child, task->pattern);
@@ -283,124 +296,67 @@ HtmlObject* HtmlNextSelect(HtmlSelect* select) {
                 continue;
             }
 
-            // no more pattern, checking child //
-
+            // final pattern, checking child types TAG SINGLE or SCRIPT //
             if (child->type == HTML_TYPE_TAG || child->type == HTML_TYPE_SINGLE || child->type == HTML_TYPE_SCRIPT) {
                 if (HtmlLibIsObjectSuitPattern(child, task->pattern)) {
+                    // object suit patterns, but not target index
                     if (task->index != task->pattern->targetIndex) {
                         goto IncreaseIndex;
                     }
 
+                    // return object also remove current task
+                    if (task->pattern->targeted) {
+                        select->lastTask = task->prev;
+                        HtmlLibDestroySelectTask(task);
+                    }
                     return child;
                 }
+
+                // more one checking for TAG, other types handled...
             }
 
-            // no suit for pattern, finding child children
+            // no suit for pattern, make task for same pattern finding in child
             if (child->type == HTML_TYPE_TAG || child->type == HTML_TYPE_DOCUMENT) {
-                select->lastTask = HtmlLibCreateSelectTask(task, child, task->pattern);
-                break;
+                goto CheckObjectsUnderChild;
             }
 
             continue;
+
+
+
+            // goto method to check TAG object
+        CheckTag:
+            if (HtmlLibIsObjectSuitPattern(child, task->pattern)) {
+                // child suit to pattern but not target index
+                if (task->index != task->pattern->targetIndex) {
+                    goto IncreaseIndex;
+                }
+
+                // make task to forward select
+                select->lastTask = HtmlLibCreateSelectTask(task, child, task->pattern->next);
+
+                if (task->pattern->targeted) {
+                    select->lastTask = task->prev;
+                    HtmlLibDestroySelectTask(task);
+                }
+                break;
+            }
+
+            // if TAG not suit to pattern, move to CheckObjectsUnderChild ...
+
+            // goto method to check document
+        CheckObjectsUnderChild:
+            select->lastTask = HtmlLibCreateSelectTask(task, child, task->pattern);
+            break;
 
             // goto method for increase index
         IncreaseIndex:
             task->index += task->indexIncrease;
-        }
-    }
-    return NULL;
-}
-
-
-
-
-
-
-
-
-
-
-
-// new things is otherly to old things, old FindObject will replace to getting object in one loop in SelectObject
-
-
-
-HtmlObject* HtmlLibFindObject(HtmlObject* object, HtmlSelectPattern* select) {
-    // setup iterator variables //
-    HtmlObjectIterator iterator;
-    HtmlObject* (*IncreaseMethod)(HtmlObjectIterator*) = NULL;
-
-    int index;
-    int indexIncrease;
-
-    if (select->targetIndex >= 0) {
-        iterator = HtmlBeginObject(object);
-        IncreaseMethod = HtmlNextObject;
-        index = 0;
-        indexIncrease = 1;
-    }
-    else {
-        iterator = HtmlEndObject(object);
-        IncreaseMethod = HtmlPrevObject;
-        index = -1;
-        indexIncrease = -1;
-    }
-
-    // finding //
-    HtmlObject* result;
-    for (HtmlObject* child; (child = IncreaseMethod(&iterator)); ) {
-
-        // having next select, tag and document only //
-        if (select->next) {
-            if (child->type == HTML_TYPE_TAG) {
-                if (HtmlIsObjectPatterns(child, select)) {
-                    if (index != select->targetIndex) {
-                        index += indexIncrease;
-                        continue;
-                    }
-
-                    result = HtmlLibFindObject(child, select->next);
-                    if (result) {
-                        return result;
-                    }
-                }
-
-                result = HtmlLibFindObject(child, select);
-                if (result) {
-                    return result;
-                }
-            }
-            if (child->type == HTML_TYPE_DOCUMENT) {
-                result = HtmlLibFindObject(child, select);
-                if (result) {
-                    return result;
-                }
-            }
             continue;
         }
-
-        // no next select, allow more types checking //
-
-        if (child->type == HTML_TYPE_TAG || child->type == HTML_TYPE_SINGLE || child->type == HTML_TYPE_SCRIPT) {
-            if (HtmlIsObjectPatterns(child, select)) {
-
-                if (index != select->targetIndex) {
-                    index += indexIncrease;
-                    continue;
-                }
-
-                return child;
-            }
-        }
-
-        if (child->type == HTML_TYPE_TAG || child->type == HTML_TYPE_DOCUMENT) {
-            result = HtmlLibFindObject(child, select);
-            if (result) {
-                return result;
-            }
-        }
     }
 
+    // no more result
     return NULL;
 }
 
@@ -409,24 +365,16 @@ HtmlObject* HtmlLibFindObject(HtmlObject* object, HtmlSelectPattern* select) {
 
 
 
-
-
-HtmlSelect HtmlSelectObject(HtmlObject* object, const char* patterns) {
-    return (HtmlSelect){};
-}
 
 HtmlObject* HtmlFindObject(HtmlObject* object, const char* patterns) {
     HtmlHandleNullError(object, NULL);
     HtmlHandleEmptyStringError(patterns, NULL);
 
-    HtmlSelectPattern* objectPatterns = HtmlCreatePatterns(patterns);
-    HtmlObject* result = HtmlLibFindObject(object, objectPatterns);
-    HtmlCreatePatterns(objectPatterns);
+    HtmlSelect select = HtmlCreateSelect(object, patterns);
+    HtmlObject* result = HtmlNextSelect(&select);
+    HtmlDestroySelect(&select);
     return result;
 }
-
-
-
 
 
 
