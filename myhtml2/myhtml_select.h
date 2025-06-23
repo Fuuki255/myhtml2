@@ -10,30 +10,43 @@
 
 
 
-typedef struct HtmlSelect {
+typedef struct HtmlSelectPattern {
     char* _name;
     char* _class;
     char* _id;
 
     int targetIndex;
 
-    HtmlSelect* next;
+    HtmlSelectPattern* next;
+} HtmlSelectPattern;
+
+
+typedef struct HtmlSelectTask {
+    HtmlSelectPattern pattern;
+
+    HtmlObjectIterator iterator;
+    HtmlObject* (*IncreaseMethod)(HtmlObjectIterator*);
+
+    int index;
+    int indexIncrease;
+
+    HtmlSelectTask* prev;
+} HtmlSelectTask;
+
+
+typedef struct HtmlSelect {
+    HtmlSelectPattern* patterns;
+    HtmlSelectTask* lastTask;
 } HtmlSelect;
 
-
-typedef struct HtmlArray {
-    HtmlObject** objects;
-    int count;
-    int limit;
-} HtmlArray;
 
 
 
 // Go forward the select
-HtmlSelect* HtmlCreateSelect(const char* patterns) {
-    // malloc first HtmlSelect
-    HtmlSelect* first = NULL;
-    HtmlSelect* last = NULL;
+HtmlSelectPattern* HtmlLibCreateSelectPatterns(const char* patterns) {
+    // malloc first HtmlSelectPattern
+    HtmlSelectPattern* first = NULL;
+    HtmlSelectPattern* last = NULL;
 
     // read patterns loop
     int c;
@@ -49,11 +62,11 @@ HtmlSelect* HtmlCreateSelect(const char* patterns) {
         }
 
         // create pattern //
-        HtmlSelect* select = (HtmlSelect*)calloc(1, sizeof(HtmlSelect));
-        HtmlHandleOutOfMemoryError(select, first);
+        HtmlSelectPattern* selectPattern = (HtmlSelectPattern*)calloc(1, sizeof(HtmlSelectPattern));
+        HtmlHandleOutOfMemoryError(selectPattern, first);
 
         if (first == NULL) {
-            first = select;
+            first = selectPattern;
         }
         // the `last` variable will set late
 
@@ -65,7 +78,7 @@ HtmlSelect* HtmlCreateSelect(const char* patterns) {
         for (; c != 0 && !isspace(c); c = *(++patterns)) {
             // special read
             if (c == '[') {
-                sscanf(++patterns, "%d", &select->targetIndex);
+                sscanf(++patterns, "%d", &selectPattern->targetIndex);
                 
                 for (; (c = *patterns) != 0 && (isspace(c) || isdigit(c) || c == ']' || c == '-'); patterns++);
 
@@ -77,18 +90,18 @@ HtmlSelect* HtmlCreateSelect(const char* patterns) {
                 if (write) {
                     (*write)[writeLength] = 0;
                 }
-                write = &select->_class;
+                write = &selectPattern->_class;
                 goto SetupWrite;
             }
             if (c == '#') {
                 if (write) {
                     (*write)[writeLength] = 0;
                 }
-                write = &select->_id;
+                write = &selectPattern->_id;
                 goto SetupWrite;
             }
             if (write == NULL) {
-                write = &select->_name;
+                write = &selectPattern->_name;
                 goto SetupWrite;
             }
 
@@ -98,11 +111,11 @@ HtmlSelect* HtmlCreateSelect(const char* patterns) {
                 (*write) = (char*)realloc((*write), writeCapacity);
                 
                 if ((*write) == NULL) {
-                    HtmlLibDestroyPointer(select->_name);
-                    HtmlLibDestroyPointer(select->_class);
-                    HtmlLibDestroyPointer(select->_id);
+                    HtmlLibDestroyPointer(selectPattern->_name);
+                    HtmlLibDestroyPointer(selectPattern->_class);
+                    HtmlLibDestroyPointer(selectPattern->_id);
 
-                    free(select);
+                    free(selectPattern);
                     return first;
                 }
             }
@@ -127,38 +140,38 @@ HtmlSelect* HtmlCreateSelect(const char* patterns) {
         (*write)[writeLength] = 0;
 
         if (last) {
-            last->next = select;
+            last->next = selectPattern;
         }
-        last = select;
+        last = selectPattern;
     }
 
     return first;
 }
 
 
-void HtmlDestroySelect(HtmlSelect* select) {
-    if (select == NULL) {
+void HtmlLibDestroySelectPatterns(HtmlSelectPattern* selectPattern) {
+    if (selectPattern == NULL) {
         return;
     }
 
-    for (HtmlSelect* next = select->next; select; select = next, next = next ? next->next : NULL) {
-        free(select->_name);
-        free(select->_class);
-        free(select->_id);
+    for (HtmlSelectPattern* next = selectPattern->next; selectPattern; selectPattern = next, next = next ? next->next : NULL) {
+        free(selectPattern->_name);
+        free(selectPattern->_class);
+        free(selectPattern->_id);
 
-        free(select);
+        free(selectPattern);
     }
 }
 
 
-bool HtmlIsObjectPatterns(HtmlObject* object, HtmlSelect* select) {
-    if (select->_name && strcmp(select->_name, object->name) != 0) {
+bool HtmlLibIsObjectSuitPattern(HtmlObject* object, HtmlSelectPattern* selectPattern) {
+    if (selectPattern->_name && strcmp(selectPattern->_name, object->name) != 0) {
         return false;
     }
-    if (select->_class && strcmp(select->_class, HtmlGetObjectAttributeValue(object, "class")) != 0) {
+    if (selectPattern->_class && strcmp(selectPattern->_class, HtmlGetObjectAttributeValue(object, "class")) != 0) {
         return false;
     }
-    if (select->_class && strcmp(select->_class, HtmlGetObjectAttributeValue(object, "id")) != 0) {
+    if (selectPattern->_class && strcmp(selectPattern->_class, HtmlGetObjectAttributeValue(object, "id")) != 0) {
         return false;
     }
 
@@ -168,9 +181,151 @@ bool HtmlIsObjectPatterns(HtmlObject* object, HtmlSelect* select) {
 
 
 
+HtmlSelectTask* HtmlLibCreateSelectTask(HtmlSelectTask* prev, HtmlObject* object, HtmlSelectPattern* selectPattern) {
+    HtmlSelectTask* task = (HtmlSelectTask*)malloc(sizeof(HtmlSelectTask));
+    HtmlHandleOutOfMemoryError(task, NULL);
+
+    task->pattern = selectPattern;
+
+    if (selectPattern->targetIndex >= 0) {
+        task->iterator = HtmlBeginObject(object);
+        task->IncreaseMethod = HtmlNextObject;
+        task->index = 0;
+        task->indexIncrease = 1;
+    }
+    else {
+        task->iterator = HtmlEndObject(object);
+        task->IncreaseMethod = HtmlPrevObject;
+        task->index = -1;
+        task->indexIncrease = -1;
+    }
+
+    task->prev = prev;
+    return task;
+}
 
 
-HtmlObject* HtmlLibFindObject(HtmlObject* object, HtmlSelect* select) {
+#define HtmlLibDestroySelectTask(task) (free(task))
+
+
+
+
+
+
+
+HtmlSelect HtmlCreateSelect(HtmlObject* object, const char* patterns) {
+    HtmlHandleNullError(object, NULL);
+    HtmlHandleEmptyStringError(patterns, NULL);
+
+    HtmlSelect select = {0};
+
+    // create patterns
+    select.patterns = HtmlCreatePatterns(patterns);
+    HtmlHandleOutOfMemoryError(select.patterns, select);
+
+    // set last task
+    select.lastTask = HtmlLibCreateSelectTask(NULL, object, select.patterns);
+    if (select.lastTask == NULL) {
+        HtmlDestroyPatterns(select.patterns);
+        return (HtmlSelect){0};
+    }
+
+    return select;
+}
+
+
+HtmlObject* HtmlNextSelect(HtmlSelect* select) {
+    if (select->lastTask == NULL) {
+        return NULL;
+    }
+
+    // run tasks //
+    HtmlSelectTask* task;
+
+    while ((task = select->lastTask)) {
+        HtmlObject* child = NULL;
+        
+        while (true) {
+            child = task->IncreaseMethod(&iterator)
+
+            // if the end of child, remove task
+            if (child == NULL) {
+                HtmlLibDestroySelectTask(task);
+                select->lastTask = task->prev;
+                break;
+            }
+
+            if (task->pattern->next) {
+                if (child->type == HTML_TYPE_TAG) {
+                    if (HtmlLibIsObjectSuitPattern(child, task->pattern)) {
+                        if (task->index != task->pattern->targetIndex) {
+                            task->index += task->indexIncrease;
+                            continue;
+                        }
+
+                        result = HtmlLibFindObject(child, task->pattern->next);
+                        if (result) {
+                            return result;
+                        }
+                    }
+
+                    result = HtmlLibFindObject(child, task->pattern);
+                    if (result) {
+                        return result;
+                    }
+                }
+                if (child->type == HTML_TYPE_DOCUMENT) {
+                    result = HtmlLibFindObject(child, task->pattern);
+                    if (result) {
+                        return result;
+                    }
+                }
+                continue;
+            }
+
+            // no more pattern, checking child //
+
+            if (child->type == HTML_TYPE_TAG || child->type == HTML_TYPE_SINGLE || child->type == HTML_TYPE_SCRIPT) {
+                if (HtmlLibIsObjectSuitPattern(child, task->pattern)) {
+                    if (task->index != task->pattern->targetIndex) {
+                        goto IncreaseIndex;
+                    }
+
+                    return child;
+                }
+            }
+
+            // no suit for pattern, finding child children
+            if (child->type == HTML_TYPE_TAG || child->type == HTML_TYPE_DOCUMENT) {
+                select->lastTask = HtmlLibCreateSelectTask(task, child, task->pattern);
+                break;
+            }
+
+            continue;
+
+            // goto method for increase index
+        IncreaseIndex:
+            task->index += task->indexIncrease;
+        }
+    }
+    return NULL;
+}
+
+
+
+
+
+
+
+
+
+
+
+// new things is otherly to old things, old FindObject will replace to getting object in one loop in SelectObject
+
+
+
+HtmlObject* HtmlLibFindObject(HtmlObject* object, HtmlSelectPattern* select) {
     // setup iterator variables //
     HtmlObjectIterator iterator;
     HtmlObject* (*IncreaseMethod)(HtmlObjectIterator*) = NULL;
@@ -256,17 +411,17 @@ HtmlObject* HtmlLibFindObject(HtmlObject* object, HtmlSelect* select) {
 
 
 
-HtmlArray HtmlSelectObject(HtmlObject* object, const char* patterns, int limit) {
-    return (HtmlArray){};
+HtmlSelect HtmlSelectObject(HtmlObject* object, const char* patterns) {
+    return (HtmlSelect){};
 }
 
 HtmlObject* HtmlFindObject(HtmlObject* object, const char* patterns) {
     HtmlHandleNullError(object, NULL);
     HtmlHandleEmptyStringError(patterns, NULL);
 
-    HtmlSelect* select = HtmlCreateSelect(patterns);
-    HtmlObject* result = HtmlLibFindObject(object, select);
-    HtmlDestroySelect(select);
+    HtmlSelectPattern* objectPatterns = HtmlCreatePatterns(patterns);
+    HtmlObject* result = HtmlLibFindObject(object, objectPatterns);
+    HtmlCreatePatterns(objectPatterns);
     return result;
 }
 

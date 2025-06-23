@@ -43,7 +43,7 @@ int main(int argc, char** argv) {
 	HtmlObject* doc = HtmlReadObjectFromFile("Samples/example.html");
 	printf("Document:\n%s\n", HtmlWriteObjectToString(doc));
 
-	HtmlObject* result = HtmlFindObject(doc, "p");
+	HtmlObject* result = HtmlFindObject(doc, ".main");
 	
 	printf("result: %s\n", HtmlWriteObjectToString(result));
 
