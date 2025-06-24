@@ -199,8 +199,35 @@ bool HtmlLibIsObjectSuitPattern(HtmlObject* object, HtmlSelectPattern* selectPat
     if (selectPattern->_name && strcmp(selectPattern->_name, object->name) != 0) {
         return false;
     }
-    if (selectPattern->_class && strcmp(selectPattern->_class, HtmlGetObjectAttributeValue(object, "class")) != 0) {
-        return false;
+    if (selectPattern->_class) {
+        const char* classes = HtmlGetObjectAttributeValue(object, "class");
+        if (*classes == 0) {
+        	return false;
+        }
+        
+        size_t patternClassLength = strlen(selectPattern->_class);
+        
+        while (classes) {
+            const char* split = strchr(classes, ' ');
+        	size_t length = split ? (split - classes) : strlen(classes);
+        	
+        	if (length == patternClassLength && memcmp(classes, selectPattern->_class, length) == 0) {
+        		break;
+        	}
+        	
+    		classes = split;
+        	if (split == NULL) {
+        		break;
+        	}
+        	while (isspace(*classes)) {
+        		classes++;
+    		}
+        }
+        
+        // false because no class in object suit pattern
+        if (classes == NULL) {
+        	return false;
+        }
     }
     if (selectPattern->_id && strcmp(selectPattern->_id, HtmlGetObjectAttributeValue(object, "id")) != 0) {
         return false;
