@@ -1,7 +1,7 @@
 #ifndef _MYHTML_OBJECT_H_
 #define _MYHTML_OBJECT_H_
 
-#define HTML_VERSION "2.0.0"
+#define HTML_VERSION {2, 0, 1}
 
 // Includes //
 
@@ -71,6 +71,13 @@ typedef size_t (*HtmlCallbackWrite)(void* buf, size_t n, size_t size, void* stre
 typedef int (*HtmlCallbackSeek)(void* streamData, long move, int seek);
 typedef size_t (*HtmlCallbackTell)(void* streamData);
 typedef void (*HtmlCallbackDestroy)(void* streamData);
+
+
+
+typedef struct HtmlVersion {
+    int major, minor, patch;
+} HtmlVersion;
+
 
 
 typedef struct HtmlAttribute HtmlAttribute;
