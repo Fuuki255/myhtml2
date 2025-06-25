@@ -18,6 +18,12 @@ C言語で書かれた軽量・高速なHTMLパーサ＆セレクタライブラ
 
 ---
 
+## インストール
+
+myhtml2 フォルダを自分のプロジェクトに加え、 `#include "myhtml2/myhtml.h"` でライブラリを導入すればいい
+
+---
+
 ## サンプル
 
 ```c
@@ -81,12 +87,6 @@ int main(int argc, char** argv) {
   return 0;
 }
 ```
-
----
-
-## インストール
-
-myhtml2 フォルダを自分のプロジェクトに加え、 `#include "myhtml2/myhtml.h"` でライブラリを導入すればいい
 
 ---
 
