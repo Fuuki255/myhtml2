@@ -70,7 +70,7 @@ int main(int argc, char** argv) {
 
 ## スピードテスト
 
-youtube.com からダウンロードされた動画ページのHTML (3.04 MB) を読み取り、`<img>` を検索するスピードテストで、HTMLパースが 26.152ms で完了し、HTMLから `<img>` が 292 見つかり 2.192ms かかりました。
+youtube.com からダウンロードされた動画ページのHTML (3.04 MB) を読み取り、`<img>` を検索するスピードテストで、HTMLパースが 25.565ms で完了し、HTMLから `<img>` が 292 見つかり 2.343ms かかりました。
 
 <img src="speedtest.png">
 
