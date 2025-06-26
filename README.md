@@ -28,7 +28,7 @@ myhtml2 フォルダを自分のプロジェクトに加え、 `#include "myhtml
 
 ```c
 #include <curl/curl.h>        // libcurl の拡張機能を使用するには myhtml.h 前に定義する必要がある
-#include "myhtml2/myhtml.h"
+#include "myhtml.h"
 
 int main(int argc, char** argv) {
   // libcurl 初期化
@@ -81,7 +81,7 @@ int main(int argc, char** argv) {
 
   // クリーンアップ
   HtmlDestroyObject(doc);
-  // Get, Find, Next などで得た HtmlObject は削除する必要がない
+  // GetObject, FindObject, NextSelect などで得た HtmlObject は削除する必要がない
 
   curl_easy_cleanup(curl);
   return 0;
