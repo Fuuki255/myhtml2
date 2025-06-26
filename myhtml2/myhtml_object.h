@@ -17,6 +17,7 @@
 typedef enum HtmlCode {
 	HTML_OK,
 	HTML_SUCCESS = 0,
+	HTML_FAILED,
 
 	HTML_OUT_OF_MEMORY,
 	HTML_NULL_POINTER,
@@ -511,18 +512,23 @@ HtmlStream HtmlCreateStreamBuffer(size_t blockSize) {
 }
 
 // create a HtmlStream almost for read string
-HtmlStream HtmlCreateStreamString(char* str) {
+HtmlStream HtmlCreateStreamString(const char* str) {
 	HtmlHandleEmptyStringError(str, HtmlCreateStreamEmpty());
 
 	// create streamData //
-	HtmlStreamString* streamData = (HtmlStreamString*)malloc(sizeof(HtmlStreamString));
+	HtmlStreamString* streamString = (HtmlStreamString*)malloc(sizeof(HtmlStreamString));
 	HtmlHandleOutOfMemoryError(streamData, HtmlCreateStreamEmpty());
 
 	// Initialize streamData
-	streamData->length = strlen(str);
-	*streamData = (HtmlStreamString){(char*)str, 0, streamData->length, streamData->length + 1};
+	streamString->buffer = (char*)str;
+	streamString->position = 0;
+	streamString->length = strlen(str);
+	streamString->capacity = streamString->length + 1;
 
-	return HtmlLibInitStreamString(streamData);
+	HtmlStream stream = HtmlLibInitStreamString(streamData);
+	stream->destroy = NULL;
+
+	return stream;
 }
 
 
@@ -533,12 +539,21 @@ HtmlStream HtmlCreateStreamString(char* str) {
 
 const char* HtmlGetStreamString(HtmlStream* stream) {
 	HtmlHandleNullError(stream, "");
-	HtmlHandleError(stream->destroy == NULL, "", "not a StreamString!");
+	HtmlHandleError(stream->getchar != HtmlLibGetcharFromStreamString, "", "not a StreamString!");
 	
 	HtmlStreamString* streamString = (HtmlStreamString*)stream->data;
 	streamString->buffer[streamString->length] = 0; // Ensure null-termination
 	
 	return streamString->buffer;
+}
+
+HtmlCode HtmlClearStreamBuffer(HtmlStream* stream) {
+	HtmlHandleNullError(stream, HTML_FAILED);
+	HtmlHandleError(stream->destroy != HtmlLibDestroyStringStream, HTML_FAILED, "not a StreamString!");	// identify StreamString and StreamBuffer
+
+	HtmlStreamString* streamBuffer = (HtmlStreamString*)stream->data;
+	streamBuffer->length = 0;
+	return HTML_OK;
 }
 
 
@@ -815,6 +830,8 @@ HtmlCode HtmlSetObjectAttribute(HtmlObject* object, const char* attrName, const 
     return HTML_OK;
 }
 
+#define HtmlSetObjectAttrValue(object, name, attrValue) HtmlSetObjectAttribute(object, name, attrValue)
+
 
 
 // Get
@@ -931,6 +948,8 @@ const char* HtmlGetObjectAttributeValue(HtmlObject* object, const char* attrName
 	}
 	return ""; // Attribute not found
 }
+#define HtmlGetObjectAttrValue(object, attrName) HtmlGetObjectAttributeValue(object, attrName)
+
 
 HtmlObject* HtmlGetObjectFirstChild(HtmlObject* object) {
 	HtmlHandleNullError(object, NULL);
