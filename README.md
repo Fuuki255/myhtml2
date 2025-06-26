@@ -139,7 +139,22 @@ HtmlDestroyStream(&stream);
 
 ---
 
-### 4. (オプション) HTMLの出力
+### 4. (オプション) オブジェクト変更
+
+```c
+// テキスト設定
+HtmlObjectSetInnerText(tagH1, "Hello, World");
+
+// 属性設定
+HtmlSetObjectAtterValue(tagMeta, "charset", "utf-8");
+
+// オブジェクト追加
+HtmlAddObjectChild(object, child);
+```
+
+---
+
+### 5. (オプション) HTMLの出力
 
 ```c
 // ファイルに書き込む
@@ -157,7 +172,7 @@ HtmlWriteObjectToStream(doc, &htmlStream);
 
 ---
 
-### 5. メモリ解放
+### 6. メモリ解放
 
 ```c
 // HtmlObject 削除
