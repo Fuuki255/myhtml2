@@ -111,7 +111,7 @@ int main(int argc, char** argv) {
   char buffer[4096];
 
   while ((readed = fread(buffer, 1, sizeof(buffer), file))) {
-      stream.write(buffer, 1, sizeof(buffer), stream.data);
+      stream.write(buffer, 1, readed, stream.data);
       fileSize += readed;
   }
   fclose(file);
