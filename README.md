@@ -1,4 +1,4 @@
-# myhtml2
+# myhtml2 - 高速なHTMLパーサー
 
 C言語で書かれた軽量・高速なHTMLパーサ＆セレクタライブラリ、以前のバージョンと比べてより高速、高機能、高安定性かつ読みやすいなどで全方位的にアップグレードされています
 
@@ -20,7 +20,8 @@ C言語で書かれた軽量・高速なHTMLパーサ＆セレクタライブラ
 
 ## インストール
 
-myhtml2 フォルダを自分のプロジェクトに加え、 `#include "myhtml2/myhtml.h"` でライブラリを導入すればいい
+1. `git clone https://www.github.com/Fuuki255/myhtml2` で myhtml2 をダウンロード
+2. Cプログラムに `#include "myhtml2/myhtml.h"` ヘッダーでライブラリを導入すればいい
 
 ---
 
@@ -34,7 +35,7 @@ int main(int argc, char** argv) {
   // libcurl 初期化
   CURL* curl = curl_easy_init();
 
-  // HTML 取得
+  // HTML をゲットし、解析する
   HtmlObject* doc = HtmlReadObjectFromCURL(curl, "https://example.com");
 
   // 検索1 : title
@@ -54,7 +55,7 @@ int main(int argc, char** argv) {
 
   HtmlDestroyStream(&stream);     // stream 削除
 
-  // 検索4 : マルチ検索1
+  // 検索4 : すべての <meta> 検索し、プリントする
   HtmlSelect select = HtmlCreateSelect(doc, "meta");    // myhtml2 の検索コアとなった HtmlSelect、イテレータ構造で必要な分だけ検索することができます
   HtmlObject* object;
 
@@ -66,7 +67,7 @@ int main(int argc, char** argv) {
   
   HtmlDestroySelect(&select);   // HtmlSelect の使用後は削除する必要があります
 
-  // 検索5 : マルチ検索2
+  // 検索5 : すべての <p></p> 検索し、プリントする
   HtmlArray array = HtmlFindAllObjects(doc, "p", 8);     // HtmlSelect の結果を配列にまとめるメソッド、 出力の HtmlArray は同様に削除する必要がある
   
   printf("All <p> in html:\n");
@@ -81,7 +82,6 @@ int main(int argc, char** argv) {
 
   // クリーンアップ
   HtmlDestroyObject(doc);
-  // GetObject, FindObject, NextSelect などで得た HtmlObject は削除する必要がない
 
   curl_easy_cleanup(curl);
   return 0;
