@@ -1,6 +1,6 @@
 # myhtml2 - 高速なHTMLパーサー
 
-C言語で書かれた軽量・高速なHTMLパーサ＆セレクタライブラリ、以前のバージョンと比べてより高速、高機能、高安定性かつ読みやすいなどで全方位的にアップグレードされています
+C言語で書かれた軽量・高速なHTMLライブラリ、以前のバージョン (beta1.0 から 1.0) と比べてより高速、高機能、高安定性、読みやすいなどで全方位的にアップグレードされています
 
 | バージョン    | 2.1.0         |
 |:-------------|:--------------|
@@ -9,12 +9,13 @@ C言語で書かれた軽量・高速なHTMLパーサ＆セレクタライブラ
 
 ## 特徴
 
-- 文字列、ファイル、ストリーム、libcurl など多様な入力ソースからHTMLをパース
-- タグ名、クラスや ID による要素検索
-- 属性値やテキストの簡単取得
-- HTMLの再出力やファイル書き込みも可能
-- 明確なメモリ管理
-- 詳しいデバックメッセージが表示され、NULL処理が忘れても平気い、メッセージのオフも可能
+- 文字列、ファイル、カスタマイズリーダー (HtmlStream) や libcurl などからHTMLを解析できる
+- 各HTMLバージョンの対応性、BeautifulSoup4 を参考したのエラードキュメント処理
+- タグ名、クラス、ID や検索番目 [index] による要素検索
+- 外部参考いらない、唯一参考 libcurl が導入していないと対応のメソッドを作成しない
+- HtmlObject 書き込み可能
+- 簡潔なコードができる
+- デバックの表示、全メソッドに NULL 入力が処理が対処され、デバックメッセージをオフも可能
 
 ---
 
@@ -32,55 +33,31 @@ C言語で書かれた軽量・高速なHTMLパーサ＆セレクタライブラ
 #include "myhtml.h"
 
 int main(int argc, char** argv) {
-  // libcurl 初期化
+  /* libcurl 初期化 */
   CURL* curl = curl_easy_init();
 
-  // HTML をゲットし、解析する
+  /* https://example.com からHTML を取得する */
   HtmlObject* doc = HtmlReadObjectFromCURL(curl, "https://example.com");
 
-  // 検索1 : title
+  /* 検索実例1: <title></title> */
   HtmlObject* tagTitle = HtmlFindObject(doc, "title");
-  printf("HTML %s\n", HtmlGetObjectInnerText(tagTitle));
+  printf("Title %s\n", HtmlGetObjectInnerText(tagTitle));
 
-  // 検索2 : <meta charset>
-  HtmlObject* tagMeta = HtmlFindObject(doc, "meta");
-  printf("charset: %s\n", HtmlGetObjectAttributeValue(tagMeta, "charset"));
+  /* 検索実例2: body プリント */
+  HtmlObject* tagBody = HtmlFindObject(doc, "body[-1] /* インデックス -1 に設定することで逆方向の検索ができます */);
 
-  // 検索3 : テキスト表示
-  HtmlObject* tagBody = HtmlFindObject(doc, "body[-1]");    // -1 は逆方向から探すため、後ろにいる body を効率的に探せる（ここに大した違いがないけど）
+  // GetObjectInnerText() と違って、GetObjectText() は子オブジェクトのテキストも含めたゲットなので新しいバッファが必要
+  // GetStreamString() は文字列系ストリームをC文字列に変更する
+  HtmlStream streamText = HtmlCreateStreamBuffer(1024);
+  printf("Text:\n%s\n", HtmlGetStreamString(&streamText));
 
-  HtmlStream stream = HtmlCreateStreamBuffer(1024);     // HtmlGetObjectText の結果は新しい文字列に保存するため、ここにバッファーを作る
-  HtmlGetObjectText(tagBody, &stream);                  // HtmlGetObjectText で body のすべてのテキストを stream に書き込む
-  printf("Text:\n%s\n\n", HtmlGetStreamString(&stream));  // stream から書き込んだデータをプリント
+  // HtmlStream の使用後は削除が必要
+  HtmlDestroyStream(&streamText);
 
-  HtmlDestroyStream(&stream);     // stream 削除
-
-  // 検索4 : すべての <meta> 検索し、プリントする
-  HtmlSelect select = HtmlCreateSelect(doc, "meta");    // myhtml2 の検索コアとなった HtmlSelect、イテレータ構造で必要な分だけ検索することができます
-  HtmlObject* object;
-
-  printf("All <meta> in html:\n");
-  while ((object = HtmlNextSelect(&select))) {
-    printf("  %s\n", HtmlWriteObjectToString(object));  // HtmlObject を HTML 文字列に変換する。戻り値は自動的に解放されるのでfree不要
-  }
-  putchar('\n');
-  
-  HtmlDestroySelect(&select);   // HtmlSelect の使用後は削除する必要があります
-
-  // 検索5 : すべての <p></p> 検索し、プリントする
-  HtmlArray array = HtmlFindAllObjects(doc, "p", 8);     // HtmlSelect の結果を配列にまとめるメソッド、 出力の HtmlArray は同様に削除する必要がある
-  
-  printf("All <p> in html:\n");
-  for (int i = 0; i < array.length; i++) {
-    printf("  %s\n", HtmlWriteObjectToString(array.values[i]));
-  }
-
-  HtmlDestroyArray(&array);
-
-  // (オプション) HTML 出力
+  /* (オプション) HTML 出力 */
   HtmlWriteObjectToFile(doc, "output.html");
 
-  // クリーンアップ
+  /* クリーンアップ */
   HtmlDestroyObject(doc);
 
   curl_easy_cleanup(curl);
@@ -96,6 +73,8 @@ int main(int argc, char** argv) {
 
 ```c
 HtmlObject* obj;
+FILE* fp;
+HtmlStream htmlStream;
 
 // 文字列から
 obj = HtmlReadObjectFromString("<html>...</html>");
@@ -107,7 +86,7 @@ obj = HtmlReadObjectFromFile("example.html");
 obj = HtmlReadObjectFromFileObject(fp);
 
 // ストリームから（カスタム実装）
-obj = HtmlReadObjectFromStream(htmlStream);
+obj = HtmlReadObjectFromStream(&htmlStream);
 
 // libcurl で取得（拡張）
 obj = HtmlReadObjectFromCURL(curl, "https://example.com");
@@ -116,6 +95,18 @@ obj = HtmlReadObjectFromCURL(curl, "https://example.com");
 ---
 
 ### 2. オブジェクト検索
+
+"tagName.className#tagId[index] (nextPattern ...)" というバタンを使用した検索
+
+- tagName はタグ名で検索 （大小文字気にせず）
+- className はクラス名で検索（大小文字区別あり）
+- tagId は ID で検索（大小文字区別あり）
+- [index] はその検索結果から index 番目の結果を戻す (、整数は正順から、-1 は逆番から
+
+* tagName, className や tagId 任意の一つが必要
+* [index] はオプション
+* CreateSearch(), FindObject(), FindAllObjects() の検索結果は同じで結果方式が違う
+
 
 ```c
 // イテレータ検索
@@ -140,7 +131,10 @@ const char* value = HtmlGetObjectAttributeValue(found, "href");
 const char* innerText = HtmlGetObjectInnerText(found);
 
 // 内部すべてのタグのテキストを取得
-HtmlGetObjectText(found, &htmlStream);
+HtmlStream* stream = HtmlCreateStream(&stream);
+HtmlGetObjectText(found, &stream);
+
+HtmlDestroyStream(&stream);
 ```
 
 ---
@@ -169,6 +163,9 @@ HtmlWriteObjectToStream(doc, &htmlStream);
 // HtmlObject 削除
 HtmlDestroyObject(obj);
 
+// HtmlStream 削除
+HtmlDestroyStream(&stream);
+
 // HtmlArray 削除
 HtmlDestroyArray(array);
 
@@ -177,6 +174,14 @@ HtmlDestroySelect(select);
 ```
 
 ---
+
+## アップデート予定
+
+- マルチオブジェクト検索 ("patterns, ...")
+- 属性でオブジェクト検索 ("t.c#i[attrName=attrValue, index]")
+- HTML記号 &amp 処理
+- tidy機能追加、未実装だが beta1.0 で既にあったが。。。
+
 
 ## ライブラリの歴史
 
