@@ -1,7 +1,7 @@
 #ifndef _MYHTML_OBJECT_H_
 #define _MYHTML_OBJECT_H_
 
-#define HTML_VERSION {2, 0, 1}
+#define HTML_VERSION {2, 1, 0}
 
 // Includes //
 
