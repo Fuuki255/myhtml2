@@ -10,6 +10,9 @@
 
 
 
+typedef struct HtmlSelectPattern HtmlSelectPattern;
+typedef struct HtmlSelectTask HtmlSelectTask;
+
 typedef struct HtmlSelectPattern {
     // word filtering
     char* _name;
@@ -192,10 +195,6 @@ void HtmlLibDestroySelectPatterns(HtmlSelectPattern* selectPattern) {
 
 
 bool HtmlLibIsObjectSuitPattern(HtmlObject* object, HtmlSelectPattern* selectPattern) {
-    /*printf("%s: %s %s   %s %s   %s %s\n", __func__,
-           object->name, selectPattern->_name,
-           HtmlGetObjectAttributeValue(object, "class"), selectPattern->_class,
-              HtmlGetObjectAttributeValue(object, "id"), selectPattern->_id);*/
     if (selectPattern->_name && strcmp(selectPattern->_name, object->name) != 0) {
         return false;
     }
@@ -425,25 +424,20 @@ HtmlArray HtmlFindAllObjects(HtmlObject* object, const char* patterns, int maxCo
     HtmlHandleNullError(object, array);
     HtmlHandleEmptyStringError(patterns, array);
 
-    if (maxCount == 0) {
-        return array;
-    }
-
     // create array //
-    array.values = (HtmlObject**)malloc(sizeof(HtmlObject*) * maxCount < 0 ? 8 : maxCount);
+    array.values = (HtmlObject**)malloc(sizeof(HtmlObject*) * (maxCount > 0 ? maxCount : 20));
     if (array.values == NULL) {
         return array;
     }
-    array.length = 0;
 
     // select objects //
     HtmlSelect select = HtmlCreateSelect(object, patterns);
     HtmlObject* result;
 
     while ((result = HtmlNextSelect(&select))) {
-        if (maxCount < 0 && array.length%8 == 7) {
+        if (maxCount <= 0 && array.length%20 == 19) {
             // increase array size
-            HtmlObject** newValues = (HtmlObject**)realloc(array.values, sizeof(HtmlObject*) * (array.length + 8));
+            HtmlObject** newValues = (HtmlObject**)realloc(array.values, sizeof(HtmlObject*) * (array.length + 21));
             if (newValues == NULL) {
                 HtmlDestroySelect(&select);
                 HtmlHandleOutOfMemoryError(newValues, array);

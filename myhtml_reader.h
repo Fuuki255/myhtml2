@@ -11,6 +11,8 @@
 
 
 
+#define HtmlLibIsNameChar(c) (isalnum(c) || c == '-' || c == '_' || c == ':' || c == '.')
+
 
 
 bool HtmlLibIsStringIn(const char* str, ...) {
@@ -56,47 +58,46 @@ int HtmlLibHexToInt(char c) {
 
 
 char* HtmlLibParseFormatedString(HtmlStream* stream, int symbol) {
-	HtmlStream output = HtmlCreateStreamBuffer(24);
+	HtmlStreamString output = (HtmlStreamString){(char*)malloc(64), 0, 0, 64};
 	int c;
 	int c1, c2;
 
 	while ((c = stream->getchar(stream->data)) != symbol) {
         if (c == EOF) {
-            fprintf(stderr, "%s: HTML not expected end! (position: %lu)\n", __func__, stream->tell(stream->data));
-            HtmlStreamString* outputData = (HtmlStreamString*)output.data;
-            outputData->buffer[outputData->length] = 0; // Null-terminate the string
+            output.buffer[output.length] = 0; // Null-terminate the string
 
-            return outputData->buffer;
+			HtmlHandleError(true, output.buffer, "HTML not expected end! (position %lu)", stream->tell(stream->data));
         }
 		if (c != '\\') {
-			output.putchar(c, output.data);
+			HtmlLibPutcharToStreamString(c, &output);
 			continue;
 		}
         
 		switch (stream->getchar(stream->data)) {
 			case 'a':
-				output.putchar('\a', output.data);
+				HtmlLibPutcharToStreamString('\a', &output);
 				break;
 			case 'r':
-				output.putchar('\r', output.data);
+				HtmlLibPutcharToStreamString('\r', &output);
 				break;
 			case 'n':
-				output.putchar('\n', output.data);
+				HtmlLibPutcharToStreamString('\n', &output);
 				break;
 			case 't':
-				output.putchar('\t', output.data);
+				HtmlLibPutcharToStreamString('\t', &output);
 				break;
 			case 'x':
 				c1 = HtmlLibHexToInt(stream->getchar(stream->data));
 				c2 = HtmlLibHexToInt(stream->getchar(stream->data));
 
-				output.putchar((c1 << 4) + c2, output.data);
+				HtmlLibPutcharToStreamString((c1 << 4) + c2, &output);
 				break;
 			default:
-				output.putchar(c, output.data);
+				HtmlLibPutcharToStreamString(c, &output);
 		}
 	}
-	return (char*)HtmlGetStreamString(&output);
+	output.buffer[output.length] = 0;
+	return output.buffer;
 }
 
 
@@ -136,7 +137,7 @@ int HtmlLibParseAttributes(HtmlObject* object, HtmlStream* stream, int c) {
 		// Read name
 		name = HtmlCreateStreamBuffer(16);
 
-		while (isalnum(c) || c == '-' || c == '_') {
+		while (HtmlLibIsNameChar(c)) {
 			name.putchar(HtmlLibLowerChar(c), name.data);
 			c = stream->getchar(stream->data);
 		}
@@ -235,7 +236,7 @@ HtmlObject* HtmlLibReadObjectFromStream(HtmlStream* stream) {
 				buffer1.buffer[buffer1.length - 3] = 0;
 
 				// Create Object
-				HtmlObject* tagComment = HtmlAddObjectChild(current, (HtmlObject*)calloc(1, sizeof(HtmlObject)));
+				HtmlObject* tagComment = HtmlLibAddObjectChild(current, (HtmlObject*)calloc(1, sizeof(HtmlObject)));
 				tagComment->type = HTML_TYPE_COMMENT;
 				tagComment->innerText = buffer1.buffer;
 				continue;
@@ -256,7 +257,7 @@ HtmlObject* HtmlLibReadObjectFromStream(HtmlStream* stream) {
 				}
 
 				// Create object
-				HtmlObject* tagDoctype = HtmlAddObjectChild(current, (HtmlObject*)calloc(1, sizeof(HtmlObject)));
+				HtmlObject* tagDoctype = HtmlLibAddObjectChild(current, (HtmlObject*)calloc(1, sizeof(HtmlObject)));
 				tagDoctype->type = HTML_TYPE_DOCTYPE;
                 
                 buffer1.buffer[buffer1.length] = 0; // Null-terminate the string
@@ -273,7 +274,7 @@ HtmlObject* HtmlLibReadObjectFromStream(HtmlStream* stream) {
 			// read close tag name
 			c = stream->getchar(stream->data);
 
-			while (isalnum(c)) {
+			while (HtmlLibIsNameChar(c)) {
 				HtmlLibPutcharToStreamString(HtmlLibLowerChar(c), &buffer1);
 				c = stream->getchar(stream->data);
 			}
@@ -295,7 +296,7 @@ HtmlObject* HtmlLibReadObjectFromStream(HtmlStream* stream) {
 
 			// warning: Not exists element name
 			if (backTag == doc) {
-				HtmlLogWarning("'%s' tag exit without closing! (position: %lu)", HtmlGetObjectName(current), stream->tell(stream->data));
+				HtmlLogWarning("Tag '%s' without closing! (%lu '%s' '%s')", HtmlGetObjectName(current), stream->tell(stream->data), backTag->name, buffer1.buffer);
 				continue;
 			}
 
@@ -307,13 +308,13 @@ HtmlObject* HtmlLibReadObjectFromStream(HtmlStream* stream) {
 		/* HTML_TAG | HTML_SCRIPT | HTML_SINGLE */
 
 		// Read tag name
-		while (isalnum(c)) {
+		while (HtmlLibIsNameChar(c)) {
 			HtmlLibPutcharToStreamString(HtmlLibLowerChar(c), &buffer1);
 			c = stream->getchar(stream->data);
 		}
 
 		// Create tag
-		current = HtmlAddObjectChild(current, (HtmlObject*)calloc(1, sizeof(HtmlObject)));
+		current = HtmlLibAddObjectChild(current, (HtmlObject*)calloc(1, sizeof(HtmlObject)));
 
         buffer1.buffer[buffer1.length] = 0; // Null-terminate the string
 		current->name = buffer1.buffer;
@@ -409,7 +410,8 @@ HtmlObject* HtmlLibReadObjectFromStream(HtmlStream* stream) {
 
 
 HtmlObject* HtmlReadObjectFromStream(HtmlStream* stream) {
-    HtmlHandleError(HtmlIsStreamReadable(stream) == false, NULL, "error %s: stream is not readable.", __func__);
+	HtmlHandleNullError(stream, NULL);
+    HtmlHandleError(HtmlIsStreamReadable(stream) == false, NULL, "stream is not readable.");
 
     HtmlObject* doc = HtmlLibReadObjectFromStream(stream);
     if (doc == NULL) {

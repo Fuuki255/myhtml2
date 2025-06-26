@@ -2,10 +2,10 @@
 
 C言語で書かれた軽量・高速なHTMLライブラリ、以前のバージョン (beta1.0 から 1.0) と比べてより高速、高機能、高安定性、読みやすいなどで全方位的にアップグレードされています
 
-| バージョン    | 2.1.0         |
-|:-------------|:--------------|
-| プログラマー  | ふうき255      |
-| 完成日時      | 24 Jun 2025   |
+| バージョン   | 2.1.1       |
+| :----------- | :---------- |
+| プログラマー | ふうき255   |
+| 完成日時     | 24 Jun 2025 |
 
 ## 特徴
 
@@ -45,7 +45,7 @@ int main(int argc, char** argv) {
   printf("Title %s\n", HtmlGetObjectInnerText(tagTitle));
 
   /* 検索実例2: body プリント */
-  HtmlObject* tagBody = HtmlFindObject(doc, "body[-1] /* インデックス -1 に設定することで逆方向の検索ができます */);
+  HtmlObject* tagBody = HtmlFindObject(doc, "body[-1]" /* インデックス -1 に設定することで逆方向の検索ができます */);
 
   // GetObjectInnerText() と違って、GetObjectText() は子オブジェクトのテキストも含めたゲットなので新しいバッファが必要
   // GetStreamString() は文字列系ストリームをC文字列に変更する
@@ -65,6 +65,81 @@ int main(int argc, char** argv) {
   return 0;
 }
 ```
+
+---
+
+## スピードテスト
+
+youtube.com からダウンロードされた動画ページのHTML (3.04 MB) を読み取り、`<img>` を検索するスピードテストで、HTMLパースが 26.152ms で完了し、HTMLから `<img>` が 292 見つかり 2.192ms かかりました。
+
+![speedtest][speedtest.png]
+
+<br>
+
+スピードテストのコードです
+
+```c
+#include "myhtml.h"
+#include <time.h>
+
+double Timeit(void (*func)(void*), void* param) {
+  struct timespec start, end;
+  clock_gettime(CLOCK_MONOTONIC, &start);
+  func(param);
+  clock_gettime(CLOCK_MONOTONIC, &end);
+  return end.tv_sec - start.tv_sec + (end.tv_nsec - start.tv_nsec) / 1.0e9;
+}
+
+
+HtmlObject* doc;
+HtmlArray array;
+
+void TestParse(void* param) {
+  doc = HtmlReadObjectFromStream((HtmlStream*)param);
+}
+
+void TestSelect(void* param) {
+  array = HtmlFindAllObjects(doc, "img", 0);
+}
+
+int main(int argc, char** argv) {
+  // read html file
+  size_t readed, fileSize = 0;
+
+  HtmlStream stream = HtmlCreateStreamBuffer(4096);
+  FILE* file = fopen("youtube.html", "r");
+  char buffer[4096];
+
+  while ((readed = fread(buffer, 1, sizeof(buffer), file))) {
+      stream.write(buffer, 1, sizeof(buffer), stream.data);
+      fileSize += readed;
+  }
+  fclose(file);
+
+  // performance tests
+  double usetime1 = Timeit(TestParse, &stream);
+  double usetime2 = Timeit(TestSelect, NULL);
+
+  // show selected <img> elements
+  for (int i = 0; i < array.length; i++) {
+      printf("  %s\n", HtmlWriteObjectToString(array.values[i]));
+  }
+  printf("%d <img> founded!\n", array.length);
+  putchar('\n');
+
+  // show time taken
+  printf("File size: %ld bytes\n", fileSize);
+  printf("Time taken to read HTML file: %lfs\n", usetime1);
+  printf("Time taken to select <img>: %lfs\n", usetime2);
+
+  // cleanup
+  HtmlDestroyObject(doc);
+  HtmlDestroyArray(&array);
+  HtmlDestroyStream(&stream);
+  return 0;
+}
+```
+
 
 ---
 
@@ -108,26 +183,43 @@ obj = HtmlReadObjectFromCURL(curl, "https://example.com");
 * [index] はオプション
 * CreateSearch(), FindObject(), FindAllObjects() の検索結果は同じで結果方式が違う
 
-
 ```c
 HtmlObject* object;
 
 /* イテレータ検索 */
-HtmlSelect* select = HtmlCreateSelect(obj, "div.classname");
+HtmlSelect* select = HtmlCreateSelect(doc, "div.main" /* クラスが main のタグを選択*/);
 
 while ((object = HtmlNextSelect(&select)) {
-
+	// do something ...
 }
 
 HtmlDestroySelect(&select);
 
 
-// 最初を検索 (HtmlSearch ベース)
-HtmlObject* found = HtmlFindObject(search, "span#id");
+/* 最初を検索 (HtmlSearch ベース) */
+HtmlObject* found = HtmlFindObject(doc, "form#searchbox" /* ID searchbox のformを検査 */);
+
+// do something ...
 
 
-// すべてを検索し、配列に保存する (HtmlSearch ベース)
-HtmlArray* array= HtmlFindAllObject(search, ".classname");
+/* すべてを検索し、配列に保存する (HtmlSearch ベース)
+
+HtmlArray HtmlFindAllObjects(HtmlObject* object, const char* patterns, int limit);
+
+パラメーター:
+- object HTMLオブジェクト
+- patterns 検索パタン
+- limit 最大オブジェクト検索数、-1 で制限なし
+
+return オブジェクト配列
+*/
+HtmlArray array = HtmlFindAllObjects(doc, "a.bottom", 7);
+
+for (int i = 0; i < array.length; i++) {
+	// do something ...
+}
+
+HtmlDestroyArray(&array);
 ```
 
 ---
@@ -146,6 +238,12 @@ HtmlStream* stream = HtmlCreateStream(&stream);
 HtmlGetObjectText(found, &stream);
 
 HtmlDestroyStream(&stream);
+
+// 子オブジェクトをカウント
+int childCount = HtmlCountObjectChildren(object);
+
+// 属性をカウント
+int attrCount = HtmlCountObjectAttributes(object);
 ```
 
 ---
@@ -172,8 +270,7 @@ HtmlObject* tagHtml = HtmlCreateObjectTag(doc, "html");
 HtmlObject* tagHead = HtmlCreateObjectTag(tagHtml, "head");
 
 
-/*
-EX版タグ作成 <title>Hello, World</title>
+/* EX版タグ作成 <title>Hello, World</title>
 
 HtmlObject* CreateObjectTagEx(
     HtmlObject* parent,
@@ -223,8 +320,30 @@ HtmlObjectSetInnerText(tagH1, "Hello, World");
 // 属性設定
 HtmlSetObjectAtterValue(tagMeta, "charset", "utf-8");
 
+
 // オブジェクト追加
 HtmlAddObjectChild(object, child);
+
+// object を target の前に移動
+HtmlInsertObjectChildBefore(parent, target, object);
+
+// object を target の後に移動
+HtmlInsertObjectChildAfter(parent, target, object);
+
+
+// html->head の <meta> を削除
+// tagMeta がその <meta> だった場合、
+HtmlDestroyObject(tagMeta);
+
+// 属性削除
+HtmlRemoveObjectAttribute(object, "attrName");
+
+
+// オブジェクトクリア
+HtmlClearObjectChildren(object);
+
+// 属性クリア
+HtmlClearObjectAttributes(object)
 ```
 
 ---
@@ -272,20 +391,24 @@ HtmlDestroySelect(select);
 - HTML記号 &amp 処理
 - tidy機能追加、未実装だが beta1.0 で既にあったが。。。
 
+---
 
-## ライブラリの歴史
+
+
+## ライブラリ歴史
 
 - **myhtml（beta1.0.0, 2023年）**
+
   - フォルダサイズ: 63.5KB
   - 最初のバージョンは myhtml（すべて小文字）として開発され、HTMLパースや検索など完全な機能を持っていた。
   - ただし、ファイルが多数に分割されており、利用時の簡潔さに欠けていた。
-
 - **MyHtml (1.0.0, 2024年)**
+
   - フォルダサイズ: 29.1KB
   - コードを大幅に簡潔化し、ファイル数も減らして再設計。
   - しかし、機能面では `beta1.0.0` の myhtml よりも検索機能が限定的で、中途半端な部分もたくさん。
-
 - **myhtml2（2.0.0, 2025年）**
+
   - フォルダサイズ: 58.3KB
   - より進化した設計で、ファイル分割を最小限に抑えつつ、安定性・パフォーマンス・機能性のすべてが過去最高レベルに。
   - 検索やストリーム、libcurl対応など多くの新機能を搭載。

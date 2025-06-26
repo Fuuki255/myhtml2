@@ -1,7 +1,7 @@
 #ifndef _MYHTML_OBJECT_H_
 #define _MYHTML_OBJECT_H_
 
-#define HTML_VERSION {2, 1, 0}
+#define HTML_VERSION {2, 1, 1}
 
 // Includes //
 
@@ -67,7 +67,7 @@ typedef int (*HtmlCallbackGetchar)(void* streamData);
 typedef size_t (*HtmlCallbackRead)(void* buf, size_t n, size_t size, void* streamData);
 
 typedef int (*HtmlCallbackPutchar)(int c, void* streamData);
-typedef size_t (*HtmlCallbackWrite)(void* buf, size_t n, size_t size, void* streamData);
+typedef size_t (*HtmlCallbackWrite)(void* buf, size_t size, size_t n, void* streamData);
 
 typedef int (*HtmlCallbackSeek)(void* streamData, long move, int seek);
 typedef size_t (*HtmlCallbackTell)(void* streamData);
@@ -125,14 +125,14 @@ int HtmlLibLowerChar(int c)	{
 
 
 #define HtmlLibDestroyPointer(p) \
-	if (p != NULL) {\
+	if (p) {\
 		free((void*)p);\
 		p = NULL;\
 	}
 
 #define HtmlSetText(var, text) \
 	HtmlLibDestroyPointer(var);\
-	if (text != NULL) {\
+	if (text) {\
 		var = (char*)malloc(strlen(text) + 1);\
 		strcpy(var, text);\
 	}
@@ -251,7 +251,7 @@ bool HtmlNextAttribute(HtmlAttributeIterator* iter, const char** attrName, const
 	iter->prev = iter->now;
 	iter->now = iter->next;
 	
-	if (iter->now != NULL) {
+	if (iter->now) {
 		iter->next = iter->now->next;
         
         *attrName = iter->now->name;
@@ -264,7 +264,7 @@ bool HtmlPrevAttribute(HtmlAttributeIterator* iter, const char** attrName, const
 	iter->next = iter->now;
 	iter->now = iter->prev;
 	
-	if (iter->now != NULL) {
+	if (iter->now) {
 		iter->prev = iter->now->prev;
 
         *attrName = iter->now->name;
@@ -297,7 +297,7 @@ HtmlObject* HtmlNextObject(HtmlObjectIterator* iter) {
 	iter->prev = iter->now;
 	iter->now = iter->next;
 	
-	if (iter->now != NULL) {
+	if (iter->now) {
 		iter->next = iter->now->next;
 	}
 	return iter->now;
@@ -307,7 +307,7 @@ HtmlObject* HtmlPrevObject(HtmlObjectIterator* iter) {
 	iter->next = iter->now;
 	iter->now = iter->prev;
 	
-	if (iter->now != NULL) {
+	if (iter->now) {
 		iter->prev = iter->now->prev;
 	}
 	return iter->now;
@@ -351,26 +351,26 @@ void HtmlDestroyStream(HtmlStream* stream) {
 	}
 }
 
-#define HtmlIsStreamReadable(stream) (stream != NULL && stream->getchar != NULL && stream->read)
-#define HtmlIsStreamWritable(stream) (stream != NULL && stream->putchar != NULL && stream->write)
-#define HtmlIsStreamSeekable(stream) (stream != NULL && stream->seek != NULL)
+#define HtmlIsStreamReadable(stream) (stream && stream->getchar && stream->read)
+#define HtmlIsStreamWritable(stream) (stream && stream->putchar && stream->write)
+#define HtmlIsStreamSeekable(stream) (stream && stream->seek)
 
 
 #define HtmlGetcharFromStream(stream) \
-	(stream != NULL && stream->getchar != NULL ? stream->getchar(stream->data) : EOF)
+	(stream && stream->getchar ? stream->getchar(stream->data) : EOF)
 
 #define HtmlReadContentFromStream(buf, length, size, stream) \
-	(stream != NULL && stream->read != NULL ? stream->read(buf, length, size, stream->data) : 0)
+	(stream && stream->read ? stream->read(buf, length, size, stream->data) : 0)
 
 #define HtmlPutcharToStream(c, stream) \
-	(stream != NULL && stream->putchar != NULL ? stream->putchar(c, stream->data) : EOF)
+	(stream && stream->putchar ? stream->putchar(c, stream->data) : EOF)
 
 #define HtmlWriteContentToStream(content, length, size, stream) \
-	(stream != NULL && stream->write != NULL ? stream->write(content, length, size, stream->data) : 0)
+	(stream && stream->write ? stream->write(content, length, size, stream->data) : 0)
 
 
 #define HtmlGetStreamPosition(stream) \
-	(stream != NULL && stream->tell != NULL ? stream->tell(stream->data) : 0)
+	(stream && stream->tell ? stream->tell(stream->data) : 0)
 
 
 
@@ -426,8 +426,8 @@ int HtmlLibPutcharToStreamString(int c, HtmlStreamString* stream) {
 	return c;
 }
 
-size_t HtmlLibWriteStreamString(void* content, size_t length, size_t size, HtmlStreamString* stream) {
-	size_t total = length * size;
+size_t HtmlLibWriteStreamString(void* content, size_t size, size_t n, HtmlStreamString* stream) {
+	size_t total = n * size;
 
 	// expand size
 	if (HtmlLibExpandStreamString(stream, total) != HTML_OK) {
@@ -470,7 +470,7 @@ long HtmlLibTellStreamString(HtmlStreamString* streamData) {
 
 
 void HtmlLibDestroyStringStream(HtmlStreamString* streamData) {
-	if (streamData != NULL) {
+	if (streamData) {
 		free(streamData->buffer);
 		free(streamData);
 	}
@@ -517,7 +517,7 @@ HtmlStream HtmlCreateStreamString(const char* str) {
 
 	// create streamData //
 	HtmlStreamString* streamString = (HtmlStreamString*)malloc(sizeof(HtmlStreamString));
-	HtmlHandleOutOfMemoryError(streamData, HtmlCreateStreamEmpty());
+	HtmlHandleOutOfMemoryError(streamString, HtmlCreateStreamEmpty());
 
 	// Initialize streamData
 	streamString->buffer = (char*)str;
@@ -525,8 +525,8 @@ HtmlStream HtmlCreateStreamString(const char* str) {
 	streamString->length = strlen(str);
 	streamString->capacity = streamString->length + 1;
 
-	HtmlStream stream = HtmlLibInitStreamString(streamData);
-	stream->destroy = NULL;
+	HtmlStream stream = HtmlLibInitStreamString(streamString);
+	stream.destroy = NULL;
 
 	return stream;
 }
@@ -539,7 +539,7 @@ HtmlStream HtmlCreateStreamString(const char* str) {
 
 const char* HtmlGetStreamString(HtmlStream* stream) {
 	HtmlHandleNullError(stream, "");
-	HtmlHandleError(stream->getchar != HtmlLibGetcharFromStreamString, "", "not a StreamString!");
+	HtmlHandleError((void*)stream->getchar != (void*)HtmlLibGetcharFromStreamString, "", "not a StreamString!");
 	
 	HtmlStreamString* streamString = (HtmlStreamString*)stream->data;
 	streamString->buffer[streamString->length] = 0; // Ensure null-termination
@@ -549,7 +549,7 @@ const char* HtmlGetStreamString(HtmlStream* stream) {
 
 HtmlCode HtmlClearStreamBuffer(HtmlStream* stream) {
 	HtmlHandleNullError(stream, HTML_FAILED);
-	HtmlHandleError(stream->destroy != HtmlLibDestroyStringStream, HTML_FAILED, "not a StreamString!");	// identify StreamString and StreamBuffer
+	HtmlHandleError((void*)stream->destroy != (void*)HtmlLibDestroyStringStream, HTML_FAILED, "not a StreamString!");	// identify StreamString and StreamBuffer
 
 	HtmlStreamString* streamBuffer = (HtmlStreamString*)stream->data;
 	streamBuffer->length = 0;
@@ -592,7 +592,7 @@ HtmlStream HtmlCreateStreamFile(const char* filename, const char* mode) {
 
 // Create
 
-HtmlObject* HtmlAddObjectChild(HtmlObject* parent, HtmlObject* child);
+HtmlObject* HtmlLibAddObjectChild(HtmlObject* parent, HtmlObject* child);
 
 HtmlObject* HtmlLibCreateObject(HtmlObjectType type, const char* name, HtmlObject* parent) {
 	// assign memory
@@ -604,8 +604,8 @@ HtmlObject* HtmlLibCreateObject(HtmlObjectType type, const char* name, HtmlObjec
 	HtmlLibSetTextLowered(&object->name, name);
 	
 	// set relationship
-	if (parent != NULL) {
-		HtmlAddObjectChild(parent, object);
+	if (parent) {
+		HtmlLibAddObjectChild(parent, object);
 	}
 	return object;
 }
@@ -614,12 +614,15 @@ HtmlObject* HtmlLibCreateObject(HtmlObjectType type, const char* name, HtmlObjec
 HtmlObject* HtmlCreateObjectDocument() {
 	return HtmlLibCreateObject(HTML_TYPE_DOCUMENT, NULL, NULL);
 }
+#define HtmlCreateObjectDocument HtmlCreateObjectDocument
 
 
-HtmlObject* HtmlCreateObjectComment(HtmlObject* parent, const char* text) {
-	HtmlObject* comment = HtmlLibCreateObject(HTML_TYPE_COMMENT, NULL, parent);
-	HtmlSetText(comment->innerText, text);
-	return comment;
+HtmlObject* HtmlCreateObjectDoctype(HtmlObject* parent, const char* innerText) {
+	HtmlHandleNullError(innerText, NULL);
+	
+	HtmlObject* doctype = HtmlLibCreateObject(HTML_TYPE_DOCTYPE, NULL, parent);
+	HtmlSetText(doctype->innerText, innerText);
+	return doctype;
 }
 
 
@@ -630,13 +633,28 @@ HtmlObject* HtmlCreateObjectTag(HtmlObject* parent, const char* name) {
 	return tag;
 }
 
-HtmlObject* HtmlCreateObjectTagEx(HtmlObject* parent, const char* name, const char* innerText, const char* afterText) {
-	HtmlHandleNullError(name, NULL);
+/* EX版タグ作成 <tagName>innerText</tagName>
+
+@param parent 親タグ
+@param tagName タグ名
+@param innerText 内部テキスト
+@param afterText 次のテキストまでの隙間
+*/
+HtmlObject* HtmlCreateObjectTagEx(HtmlObject* parent, const char* tagName, const char* innerText, const char* afterText) {
+	HtmlHandleNullError(tagName, NULL);
 	
-	HtmlObject* tag = HtmlLibCreateObject(HTML_TYPE_TAG, name, parent);
+	HtmlObject* tag = HtmlLibCreateObject(HTML_TYPE_TAG, tagName, parent);
 	HtmlSetText(tag->innerText, innerText);
 	HtmlSetText(tag->afterText, afterText);
 	return tag;
+}
+
+
+HtmlObject* HtmlCreateObjectSingle(HtmlObject* parent, const char* name) {
+	HtmlHandleNullError(name, NULL);
+	
+	HtmlObject* singleTag = HtmlLibCreateObject(HTML_TYPE_SINGLE, name, parent);
+	return singleTag;
 }
 
 
@@ -649,18 +667,17 @@ HtmlObject* HtmlCreateObjectScript(HtmlObject* parent, const char* content) {
 }
 
 
-HtmlObject* HtmlCrerateObjectStyle(HtmlObject* parent, const char* content) {
+HtmlObject* HtmlCreateObjectStyle(HtmlObject* parent, const char* content) {
 	HtmlObject* script = HtmlLibCreateObject(HTML_TYPE_SCRIPT, "style", parent);
 	HtmlSetText(script->innerText, content);
 	return script;	
 }
 
 
-HtmlObject* HtmlCreateObjectSingle(HtmlObject* parent, const char* name) {
-	HtmlHandleNullError(name, NULL);
-	
-	HtmlObject* singleTag = HtmlLibCreateObject(HTML_TYPE_SINGLE, name, parent);
-	return singleTag;
+HtmlObject* HtmlCreateObjectComment(HtmlObject* parent, const char* text) {
+	HtmlObject* comment = HtmlLibCreateObject(HTML_TYPE_COMMENT, NULL, parent);
+	HtmlSetText(comment->innerText, text);
+	return comment;
 }
 
 
@@ -668,63 +685,81 @@ HtmlObject* HtmlCreateObjectSingle(HtmlObject* parent, const char* name) {
 
 // Destroy
 
-void HtmlDestroyObject(HtmlObject* object);
+void HtmlLibClearObjectRelationship(HtmlObject* object) {
+	if (object->parent == NULL) return;
+
+	if (object->next) {
+		object->next->prev = object->prev;
+	}
+	else {
+		object->parent->lastChild = object->prev;
+	}
+	if (object->prev) {
+		object->prev->next = object->next;
+	}
+	else {
+		object->parent->firstChild = object->next;
+	}
+	object->parent = NULL;
+}
+
 
 
 
 void HtmlClearObjectAttributes(HtmlObject* object) {
-    const char* attrName, *attrValue;
-    HtmlForeachObjectAttributes(object, attrName, attrValue) {
-        HtmlLibDestroyPointer(attrName);
-        HtmlLibDestroyPointer(attrValue);
-        
-        free(objectAttrIter.now);
-    }
-
+	HtmlAttributeIterator iter = HtmlBeginAttribute(object);
     object->firstAttribute = NULL;
     object->lastAttribute = NULL;
+	
+    while ((iter.now = iter.next)) {
+		if (iter.next) {
+			iter.next = iter.next->next;
+		}
+
+        free(iter.now->name);
+        free(iter.now->value);
+        free(iter.now);
+    }
 }
+
+void HtmlLibDestroyObject(HtmlObject* object);
 
 void HtmlClearObjectChildren(HtmlObject* object) {
-    HtmlObject* child;
-    HtmlForeachObjectChildren(object, child) {
-        HtmlDestroyObject(child);
-    }
+	HtmlObjectIterator iter = HtmlBeginObject(object);
+	object->firstChild = NULL;
+	object->lastChild = NULL;
 
-    object->firstChild = NULL;
-    object->lastChild = NULL;
+    HtmlObject* child;
+    while ((child = HtmlNextObject(&iter))) {
+        HtmlLibDestroyObject(child);
+    }
 }
 
 
-void HtmlDestroyObject(HtmlObject* object) {
+const char* HtmlGetObjectTypeString(HtmlObject* object);
+
+void HtmlLibDestroyObject(HtmlObject* object) {
+	// printf("Destroying object: %s (%s)\n", object->name ? object->name : "Unnamed", HtmlGetObjectTypeString(object));
+
+	// Clear relationships
+	HtmlLibClearObjectRelationship(object);
+
+	// Clear children and attributes
 	HtmlClearObjectChildren(object);
     HtmlClearObjectAttributes(object);
 	
-	HtmlLibDestroyPointer(object->name);
-	HtmlLibDestroyPointer(object->innerText);
-	HtmlLibDestroyPointer(object->afterText);
-
-
-    // Clear relationship
-    if (object->parent) {
-		if (object->next) {
-			object->next->prev = object->prev;
-			object->next = NULL;
-		}
-		if (object->prev) {
-			object->prev->next = object->next;
-			object->prev = NULL;
-		}
-		if (object->parent->firstChild == object) {
-			object->parent->firstChild = object->next;
-		}
-		if (object->parent->lastChild == object) {
-			object->parent->lastChild = object->prev;
-		}
-		object->parent = NULL;
-	}
+	free(object->name);
+	free(object->innerText);
+	free(object->afterText);
 
     free(object);
+}
+
+void HtmlDestroyObject(HtmlObject* object) {
+	if (object == NULL) return;
+
+    HtmlLibClearObjectRelationship(object);
+	HtmlLibDestroyObject(object);
 }
 
 
@@ -732,26 +767,7 @@ void HtmlDestroyObject(HtmlObject* object) {
 
 // Add
 
-HtmlObject* HtmlAddObjectChild(HtmlObject* parent, HtmlObject* child) {
-	// Check invalid parameter
-    HtmlHandleNullError(parent, NULL);
-    HtmlHandleNullError(child, NULL);
-	
-	// clear old relationship
-	if (child->parent) {
-		child->prev->next = child->next;
-		child->next->prev = child->prev;
-		
-		if (child->parent->firstChild == child) {
-			child->parent->firstChild = child->next;
-		}
-		if (child->parent->lastChild == child) {
-			child->parent->lastChild = child->prev;
-		}
-		
-		// don't need to set child pointer to NULL, it will set after
-	}
-
+HtmlObject* HtmlLibAddObjectChild(HtmlObject* parent, HtmlObject* child) {
 	// Edit child relationship setting
     child->parent = parent;
     child->prev = parent->lastChild;
@@ -761,12 +777,93 @@ HtmlObject* HtmlAddObjectChild(HtmlObject* parent, HtmlObject* child) {
     if (parent->lastChild) {
         parent->lastChild->next = child;
     }
-    if (!parent->firstChild) {
+    if (parent->firstChild == NULL) {
         parent->firstChild = child;
     }
     parent->lastChild = child;
+	return child;
+}
 
-    return child;
+HtmlObject* HtmlAddObjectChild(HtmlObject* parent, HtmlObject* child) {
+	// Check invalid parameter
+    HtmlHandleNullError(parent, NULL);
+    HtmlHandleNullError(child, NULL);
+	
+	// clear old relationship
+	HtmlLibClearObjectRelationship(child);
+	return HtmlLibAddObjectChild(parent, child);
+}
+
+HtmlObject* HtmlInsertObjectChildBefore(HtmlObject* parent, HtmlObject* target, HtmlObject* object) {
+	// Check invalid parameter
+	HtmlHandleNullError(parent, NULL);
+	HtmlHandleNullError(object, NULL);
+
+	if (target == NULL) {
+		target = parent->firstChild; // If target is NULL, insert before the first child
+	}
+
+	// Clear old relationship
+	HtmlLibClearObjectRelationship(object);
+
+	// Set new relationship
+	object->parent = parent;
+	object->next = target;
+
+	if (target) {
+		if (target->prev) {
+			target->prev->next = object;
+		}
+		else {
+		   parent->firstChild = object; // If no previous, set as first child
+		}
+
+		object->prev = target->prev;
+		target->prev = object;
+		return object;
+	}
+
+	// parent is empty, so that init parent children
+	parent->firstChild = object;
+	parent->lastChild = object;
+	object->prev = NULL;
+	return object;
+}
+
+HtmlObject* HtmlInsertObjectChildAfter(HtmlObject* parent, HtmlObject* target, HtmlObject* object) {
+	// Check invalid parameter
+	HtmlHandleNullError(parent, NULL);
+	HtmlHandleNullError(object, NULL);
+
+	if (target == NULL) {
+		target = parent->lastChild; // If target is NULL, insert after the last child
+	}
+
+	// Clear old relationship
+	HtmlLibClearObjectRelationship(object);
+
+	// Set new relationship
+	object->parent = parent;
+	object->prev = target;
+
+	if (target) {
+		if (target->next) {
+			target->next->prev = object;
+		}
+		else {
+			parent->lastChild = object; // If no next, set as last child
+		}
+
+		object->next = target->next;
+		target->next = object;
+		return object;
+	}
+
+	// parent is empty, so that init parent children
+	parent->firstChild = object;
+	parent->lastChild = object;
+	object->next = NULL;
+	return object;
 }
 
 
@@ -781,7 +878,7 @@ HtmlCode HtmlSetObjectInnerText(HtmlObject* object, const char* text) {
 }
 
 
-HtmlCode HtmlSetObjectAttribute(HtmlObject* object, const char* attrName, const char* attrValue) {
+HtmlCode HtmlSetObjectAttrValue(HtmlObject* object, const char* attrName, const char* attrValue) {
     HtmlHandleNullError(object, HTML_NULL_POINTER);
     HtmlHandleNullError(attrName, HTML_NULL_POINTER);
 
@@ -805,7 +902,7 @@ HtmlCode HtmlSetObjectAttribute(HtmlObject* object, const char* attrName, const 
     strcpy(attr->name, attrName);
 
     // Set attribute value
-    if (attrValue != NULL && attrValue[0] != '\0') {
+    if (attrValue && attrValue[0] != '\0') {
         attr->value = (char*)malloc(strlen(attrValue) + 1);
         HtmlHandleOutOfMemoryError(attr->value, HTML_OUT_OF_MEMORY);
 
@@ -830,7 +927,7 @@ HtmlCode HtmlSetObjectAttribute(HtmlObject* object, const char* attrName, const 
     return HTML_OK;
 }
 
-#define HtmlSetObjectAttrValue(object, name, attrValue) HtmlSetObjectAttribute(object, name, attrValue)
+#define HtmlSetObjectAttribute(object, name, attrValue) HtmlSetObjectAttrValue(object, name, attrValue)
 
 
 
@@ -935,7 +1032,7 @@ const char* HtmlGetObjectAfterText(HtmlObject* object) {
 	return object->afterText ? object->afterText : "";
 }
 
-const char* HtmlGetObjectAttributeValue(HtmlObject* object, const char* attrName) {
+const char* HtmlGetObjectAttrValue(HtmlObject* object, const char* attrName) {
 	HtmlHandleNullError(object, NULL);
 	HtmlHandleEmptyStringError(attrName, NULL);
 
@@ -946,9 +1043,9 @@ const char* HtmlGetObjectAttributeValue(HtmlObject* object, const char* attrName
 			return _attrValue;
 		}
 	}
-	return ""; // Attribute not found
+	return NULL; // Attribute not found
 }
-#define HtmlGetObjectAttrValue(object, attrName) HtmlGetObjectAttributeValue(object, attrName)
+#define HtmlGetObjectAttributeValue(object, attrName) HtmlGetObjectAttrValue(object, attrName)
 
 
 HtmlObject* HtmlGetObjectFirstChild(HtmlObject* object) {
@@ -968,7 +1065,7 @@ HtmlObject* HtmlGetObjectParent(HtmlObject* object) {
 
 
 const char* HtmlGetObjectTypeString(HtmlObject* object) {
-	HtmlHandleNullError(object, "(null pointer)");
+	HtmlHandleNullError(object, "(null)");
 	
 	switch (object->type) {
 		case HTML_TYPE_NONE:
@@ -994,36 +1091,42 @@ const char* HtmlGetObjectTypeString(HtmlObject* object) {
 
 // Remove
 
-HtmlCode HtmlRemoveObjectAttribute(HtmlObject* object, const char* attrName) {
-	HtmlHandleNullError(object, HTML_NULL_POINTER);
-	HtmlHandleNullError(attrName, HTML_NULL_POINTER);
+void HtmlRemoveObjectAttribute(HtmlObject* object, const char* attrName) {
+	HtmlHandleNullError(object, );
+	HtmlHandleNullError(attrName, );
 
 	// Search for the attribute
-	const char* _attrName, *_attrValue;
-	HtmlForeachObjectAttributes(object, _attrName, _attrValue) {
-		if (strcmp(attrName, _attrName) == 0) {
-			// Remove relationships
-			if (objectAttrIter.prev) {
-				objectAttrIter.prev->next = objectAttrIter.now->next;
-			}
-			if (objectAttrIter.next) {
-				objectAttrIter.next->prev = objectAttrIter.now->prev;
-			}
-			if (object->firstAttribute == objectAttrIter.now) {
-				object->firstAttribute = objectAttrIter.next;
-			}
-			if (object->lastAttribute == objectAttrIter.now) {
-				object->lastAttribute = objectAttrIter.prev;
-			}
-
-			// Free the attribute memory
-			HtmlLibDestroyPointer(_attrName);
-			HtmlLibDestroyPointer(_attrValue);
-			free(objectAttrIter.now);
-			return HTML_OK;
+	HtmlAttributeIterator iter = HtmlBeginAttribute(object);
+	
+	while ((iter.now = iter.next)) {
+		if (iter.next) {
+			iter.next = iter.next->next;
 		}
+		if (strcmp(attrName, iter.now->name) != 0) {
+			continue;
+		}
+
+		// Remove relationships
+		if (iter.now->prev) {
+			iter.now->prev->next = iter.now->next;
+		}
+		else {
+			object->firstAttribute = iter.next;
+		}
+		if (iter.next) {
+			iter.next->prev = iter.now->prev;
+		}
+		else {
+			object->lastAttribute = iter.now->prev;
+		}
+
+		// Free the attribute memory
+		free(iter.now->name);
+		free(iter.now->value);
+		free(iter.now);
+		return;
 	}
-	return HTML_ITEM_NOT_FOUND;
+	return;
 }
 
 
@@ -1060,7 +1163,7 @@ HtmlObject* HtmlCopyObject(HtmlObject* object) {
 			HtmlDestroyObject(copy);
 			return NULL; // Out of memory error
 		}
-		HtmlAddObjectChild(copy, childCopy);
+		HtmlLibAddObjectChild(copy, childCopy);
 	}
 
 	return copy;
@@ -1093,39 +1196,6 @@ size_t HtmlCountObjectAttributes(HtmlObject* object) {
 	}
 	return count;
 }
-
-
-
-// Print Information
-
-HtmlCode HtmlPrintObjectInfo(HtmlObject* object) {
-	printf("HtmlObject <%s> (%s)\n", HtmlGetObjectName(object), HtmlGetObjectTypeString(object));
-	printf("innerText: %s\n", HtmlGetObjectInnerText(object));
-	printf("afterText: %s\n", HtmlGetObjectAfterText(object));
-	
-	printf("attributes: ");
-	const char* attrName, *attrValue;
-	HtmlForeachObjectAttributes(object, attrName, attrValue) {
-		printf("%s ", attrName);
-	}
-	putchar('\n');
-	
-	printf("children: ");
-	HtmlObject* child;
-	HtmlForeachObjectChildren(object, child) {
-		printf("<%s> ", HtmlGetObjectName(child));
-	}
-	putchar('\n');
-	
-	printf("parent: <%s>\n", object->parent ? HtmlGetObjectName(object->parent) : "(null)");
-	printf("prev: <%s>\n", object->prev ? HtmlGetObjectName(object->prev) : "(null)");
-	printf("next: <%s>\n", object->next ? HtmlGetObjectName(object->next) : "(null)");
-	putchar('\n');
-	
-	return HTML_OK;
-}
-
-
 
 
 #endif // _MYHTML_OBJECT_H_ //

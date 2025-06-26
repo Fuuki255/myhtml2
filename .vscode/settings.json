@@ -1,0 +1,25 @@
+{
+    "files.associations": {
+        "*.rmd": "markdown",
+        "myhtml.h": "c",
+        "myhtml_methods.h": "c",
+        "myhtml_parser.h": "c",
+        "myhtml_writer.h": "c",
+        "myhtml_defines.h": "c",
+        "myhtml_stream.h": "c",
+        "vector": "c",
+        "__bit_reference": "c",
+        "__split_buffer": "c",
+        "string": "c",
+        "string_view": "c",
+        "__locale": "c",
+        "__string": "c",
+        "__node_handle": "c",
+        "random": "c",
+        "algorithm": "c",
+        "functional": "c",
+        "curl.h": "c",
+        "typeinfo": "c",
+        "chrono": "c"
+    }
+}
