@@ -19,10 +19,11 @@ C言語で書かれた軽量・高速なHTMLライブラリ、以前のバージ
 
 ---
 
-## インストール
+## インストールとコンパイル
 
 1. `git clone https://www.github.com/Fuuki255/myhtml2` で myhtml2 をダウンロード
 2. Cプログラムに `#include "myhtml2/myhtml.h"` ヘッダーでライブラリを導入すればいい
+3. `gcc`、`g++` や `clang` でCファイルコンパイル、libcurl を使用する場合は `-lcurl` を追加する
 
 ---
 
@@ -139,7 +140,71 @@ HtmlDestroyStream(&stream);
 
 ---
 
-### 4. (オプション) オブジェクト変更
+### 4. (オプション) オブジェクト作成
+
+```c
+// ドキュメント作成
+// フルネーム HtmlCreateObjectDocument() 両方使用可能
+// <html> ではなく、配列として機能している
+HtmlObject* doc = HtmlCreateDocument();
+
+
+// <!DOCTYPE html> 作成
+HtmlObject* doctype = HtmlCreateObjectDoctype(doc, "html");
+
+
+/* HtmlCreateObjectTag() */
+
+// ドキュメントに普通のタグを作る <html></html>
+HtmlObject* tagHtml = HtmlCreateObjectTag(doc, "html");
+
+// <html></html> に普通のタグを作る <head></head>
+HtmlObject* tagHead = HtmlCreateObjectTag(tagHtml, "head");
+
+
+/*
+EX版タグ作成 <title>Hello, World</title>
+
+HtmlObject* CreateObjectTagEx(
+    HtmlObject* parent,
+    const char* tagName,
+    const char* innerText,
+    const char* afterText);
+
+パラメーター:
+- parent 親タグ
+- tagName タグ名
+- innerText 内部テキスト
+- afterText 次のテキストまでの隙間
+
+return タグオブジェクト
+*/
+HtmlCreateObjectTagEx(tagHead, "title", "Hello, World", NULL);
+
+
+// シングルタグを作成 <meta>
+// EX版作成予定あり
+HtmlObject* tagMeta = HtmlCreateObjectSingle(tagHead, "meta");
+// 属性変更
+HtmlSetObjectAtterValue(tagMeta, "charset", "utf-8");
+
+
+// スクリプト作成 Script, Style
+HtmlCreateObjectScript(tagHead,
+    "console.log(\"Hello, World\");");
+
+HtmlCreateObjectStyle(tagHead,
+    "p { text-align: center; }");
+
+
+// コメント作成 <!-- This is a comment -->
+HtmlCreateObjectComment(tagHead, " This is a comment ");
+
+```
+
+---
+
+### 5. (オプション) オブジェクト変更
 
 ```c
 // テキスト設定
@@ -154,7 +219,7 @@ HtmlAddObjectChild(object, child);
 
 ---
 
-### 5. (オプション) HTMLの出力
+### 6. (オプション) HTMLの出力
 
 ```c
 // ファイルに書き込む
@@ -172,7 +237,7 @@ HtmlWriteObjectToStream(doc, &htmlStream);
 
 ---
 
-### 6. メモリ解放
+### 7. メモリ解放
 
 ```c
 // HtmlObject 削除
