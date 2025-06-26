@@ -76,7 +76,9 @@ youtube.com からダウンロードされた動画ページのHTML (3.04 MB) �
 
 <br>
 
-スピードテストのコードです
+こちらがスピードテストのコードです
+
+コンパイルコマンド: `gcc speedtest.c -O3`
 
 ```c
 #include "myhtml.h"
