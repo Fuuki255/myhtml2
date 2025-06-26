@@ -110,14 +110,24 @@ obj = HtmlReadObjectFromCURL(curl, "https://example.com");
 
 
 ```c
-// イテレータ検索
-HtmlSearch* search = HtmlCreateSearch(obj, "div.classname");
+HtmlObject* object;
+
+/* イテレータ検索 */
+HtmlSelect* select = HtmlCreateSelect(obj, "div.classname");
+
+while ((object = HtmlNextSelect(&select)) {
+
+}
+
+HtmlDestroySelect(&select);
+
 
 // 最初を検索 (HtmlSearch ベース)
 HtmlObject* found = HtmlFindObject(search, "span#id");
 
+
 // すべてを検索し、配列に保存する (HtmlSearch ベース)
-HtmlArray* select = HtmlFindAllObject(search, ".classname");
+HtmlArray* array= HtmlFindAllObject(search, ".classname");
 ```
 
 ---
