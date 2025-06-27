@@ -1008,7 +1008,16 @@ HtmlCode HtmlLibGetObjectText(HtmlObject* object, HtmlStream* stream) {
 	return HTML_OK;
 }
 
-HtmlCode HtmlGetObjectText(HtmlObject* object, HtmlStream* stream) {
+
+/* 内部すべてのタグのテキストを取得 EX
+
+object の下にあるすべてのタグからテキストを取得し、stream に書き込む
+
+@param object HtmlObject to get text from
+@param stream HtmlStream to write the text to
+@return HTML_OK on success, or an error code on failure
+*/
+HtmlCode HtmlGetObjectTextEx(HtmlObject* object, HtmlStream* stream) {
 	// checks parameter useable
 	HtmlHandleNullError(object, HTML_NULL_POINTER);
 	HtmlHandleNullError(stream, HTML_NULL_POINTER);
@@ -1019,10 +1028,59 @@ HtmlCode HtmlGetObjectText(HtmlObject* object, HtmlStream* stream) {
 	}
 
 	// Check if stream is writeable
-	HtmlHandleError(stream->write == NULL, HTML_STREAM_NOT_WRITEABLE,
+	HtmlHandleError(HtmlIsStreamWritable(stream), HTML_STREAM_NOT_WRITEABLE,
 		"HtmlStream is not writeable, please setup the write callback function!");
 	
 	return HtmlLibGetObjectText(object, stream);
+}
+
+
+// -- 内部すべてのタグのテキストを取得 --
+// 新メモリを作るため、通常ではストリームを作成してそこに書くだが、
+// それは EX 版に移し、メモリの余剰空間を使用する HtmlGetObjectText となった
+// その空間の具体的な場所は `object->name + strlen(object->name) + 1`
+const char* HtmlGetObjectText(HtmlObject* object) {
+	// checks parameter useable
+	HtmlHandleNullError(object, "");
+
+	// Check a valid object type
+	if (HtmlLibIsIntegerIn(object->type, HTML_TYPE_DOCUMENT, HTML_TYPE_TAG, -1) == false) {
+		return ""; // No text to write for not text-containing types
+	}
+
+	// create StreamBuffer that write after object->name
+    HtmlStream stream = HtmlCreateStreamBuffer(128);
+
+    int resultOffset = 1;
+    if (object->name) {
+        resultOffset += strlen(object->name);
+        stream.write(object->name, resultOffset, 1, stream.data);
+    }
+    else {
+        stream.putchar('\0', stream.data);
+    }
+
+    // write string
+    HtmlCode ret = HtmlLibGetObjectText(object, &stream);
+    if (ret != HTML_OK) {
+        HtmlDestroyStream(&stream);
+
+        HtmlHandleError(true, "", "error writing object (%d)", ret);
+    }
+
+    // store result to object->name
+    if (object->name) {
+        free(object->name);
+    }
+
+    HtmlStreamString* streamString = (HtmlStreamString*)stream.data;
+    streamString->buffer[streamString->length] = 0;
+
+    object->name = streamString->buffer;
+
+    // free HtmlStreamString without its buffer
+    free(stream.data);
+	return object->name + resultOffset; // Return the name as the text content
 }
 
 

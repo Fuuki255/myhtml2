@@ -48,12 +48,7 @@ int main(int argc, char** argv) {
   HtmlObject* tagBody = HtmlFindObject(doc, "body[-1]" /* インデックス -1 に設定することで逆方向の検索ができます */);
 
   // GetObjectInnerText() と違って、GetObjectText() は子オブジェクトのテキストも含めたゲットなので新しいバッファが必要
-  // GetStreamString() は文字列系ストリームをC文字列に変更する
-  HtmlStream streamText = HtmlCreateStreamBuffer(1024);
-  printf("Text:\n%s\n", HtmlGetStreamString(&streamText));
-
-  // HtmlStream の使用後は削除が必要
-  HtmlDestroyStream(&streamText);
+  printf("Text:\n%s\n", HtmlGetObjectText(tagBody));
 
   /* (オプション) HTML 出力 */
   HtmlWriteObjectToFile(doc, "output.html");
@@ -139,7 +134,6 @@ int main(int argc, char** argv) {
   return 0;
 }
 ```
-
 
 ---
 
@@ -227,22 +221,34 @@ HtmlDestroyArray(&array);
 ### 3. データ取得
 
 ```c
-// 属性データを取得
+// -- 属性データを取得 --
 const char* value = HtmlGetObjectAttributeValue(found, "href");
 
-// 内部テキストを取得
-const char* innerText = HtmlGetObjectInnerText(found);
 
-// 内部すべてのタグのテキストを取得
-HtmlStream* stream = HtmlCreateStream(&stream);
-HtmlGetObjectText(found, &stream);
+// -- 内部テキストを取得 --
+const char* innerText = HtmlGetObjectInnerText(object);
+
+
+// -- 内部すべてのタグのテキストを取得 --
+// 新メモリを作るため、通常ではストリームを作成してそこに書くだが、
+// それは EX 版に移し、メモリの余剰空間を使用する HtmlGetObjectText となった
+// その空間の具体的な場所は `object->name + strlen(object->name) + 1`
+const char* text = HtmlGetObjectText(object);
+
+
+// -- 内部すべてのタグのテキストを取得 EX --
+HtmlStream stream = HtmlCreateStreamBuffer(256);
+HtmlGetObjectTextEx(object, &stream);
+const char* textEx = HtmlGetStreamString(&stream);
 
 HtmlDestroyStream(&stream);
 
-// 子オブジェクトをカウント
+
+// -- 子オブジェクトをカウント --
 int childCount = HtmlCountObjectChildren(object);
 
-// 属性をカウント
+
+// -- 属性をカウント --
 int attrCount = HtmlCountObjectAttributes(object);
 ```
 
@@ -392,8 +398,6 @@ HtmlDestroySelect(select);
 - tidy機能追加、未実装だが beta1.0 で既にあったが。。。
 
 ---
-
-
 
 ## ライブラリ歴史
 

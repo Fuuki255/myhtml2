@@ -16,12 +16,7 @@ int main(int argc, char** argv) {
   HtmlObject* tagBody = HtmlFindObject(doc, "body[-1]" /* インデックス -1 に設定することで逆方向の検索ができます */);
 
   // GetObjectInnerText() と違って、GetObjectText() は子オブジェクトのテキストも含めたゲットなので新しいバッファが必要
-  // GetStreamString() は文字列系ストリームをC文字列に変更する
-  HtmlStream streamText = HtmlCreateStreamBuffer(1024);
-  printf("Text:\n%s\n", HtmlGetStreamString(&streamText));
-
-  // HtmlStream の使用後は削除が必要
-  HtmlDestroyStream(&streamText);
+  printf("Text:\n%s\n", HtmlGetObjectText(tagBody));
 
   /* (オプション) HTML 出力 */
   HtmlWriteObjectToFile(doc, "output.html");
