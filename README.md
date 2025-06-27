@@ -65,13 +65,15 @@ int main(int argc, char** argv) {
 
 ## スピードテスト
 
-youtube.com からダウンロードされた動画ページのHTML (3.04 MB) を読み取り、`<img>` を検索するスピードテストで、HTMLパースが 26.152ms で完了し、HTMLから `<img>` が 292 見つかり 2.192ms かかりました。
+youtube.com からダウンロードされた動画ページのHTML (3.04 MB) を読み取り、`<img>` を検索するスピードテストで、HTMLパースが 25.565ms で完了し、HTMLから `<img>` が 292 見つかり 2.343ms かかりました。
 
-![speedtest][speedtest.png]
+<img src="speedtest.png">
 
 <br>
 
-スピードテストのコードです
+こちらがスピードテストのコードです
+
+コンパイルコマンド: `gcc speedtest.c -O3`
 
 ```c
 #include "myhtml.h"
@@ -106,7 +108,7 @@ int main(int argc, char** argv) {
   char buffer[4096];
 
   while ((readed = fread(buffer, 1, sizeof(buffer), file))) {
-      stream.write(buffer, 1, sizeof(buffer), stream.data);
+      stream.write(buffer, 1, readed, stream.data);
       fileSize += readed;
   }
   fclose(file);
