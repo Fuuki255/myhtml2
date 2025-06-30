@@ -547,6 +547,13 @@ const char* HtmlGetStreamString(HtmlStream* stream) {
 	return streamString->buffer;
 }
 
+size_t HtmlGetStreamLength(HtmlStream* stream) {
+	HtmlHandleNullError(stream, "");
+	HtmlHandleError((void*)stream->getchar != (void*)HtmlLibGetcharFromStreamString, "", "not a StreamString!");
+
+	return ((HtmlStreamString*)stream->data)->length;
+}
+
 HtmlCode HtmlClearStreamBuffer(HtmlStream* stream) {
 	HtmlHandleNullError(stream, HTML_FAILED);
 	HtmlHandleError((void*)stream->destroy != (void*)HtmlLibDestroyStringStream, HTML_FAILED, "not a StreamString!");	// identify StreamString and StreamBuffer
