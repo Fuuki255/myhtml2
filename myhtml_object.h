@@ -1,7 +1,7 @@
 #ifndef _MYHTML_OBJECT_H_
 #define _MYHTML_OBJECT_H_
 
-#define HTML_VERSION {2, 2, 1}
+#define HTML_VERSION {2, 3, 0}
 
 // Includes //
 
@@ -678,6 +678,25 @@ HtmlObject* HtmlCreateObjectComment(HtmlObject* parent, const char* text) {
 	HtmlObject* comment = HtmlLibCreateObject(HTML_TYPE_COMMENT, NULL, parent);
 	HtmlSetText(comment->innerText, text);
 	return comment;
+}
+
+
+// A html document that having <html> <head> <meta> <title> and <body>
+HtmlObject* HtmlCreateDocumentTemplate(const char* title) {
+  HtmlObject* doc = HtmlCreateDocument();
+  HtmlObject* tagHtml = HtmlCreateObjectTag(doc, "html");
+
+  // head
+  HtmlObject* tagHead = HtmlCreateObjectTag(tagHtml, "head");
+  HtmlObject* tagMeta = HtmlCreateObjectSingle(tagHead, "meta");
+  HtmlSetObjectAttrValue(tagMeta, "charset", "utf-8");
+
+  HtmlCreateObjectTag(tagHead, "title", title, NULL);
+
+  // body
+  HtmlObject* tagBody = HtmlCreateObjectTag(tagBody, "body");
+
+  return doc;
 }
 
 
