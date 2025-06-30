@@ -15,7 +15,7 @@ HtmlCode HtmlLibWriteFormattedStringToStream(const char* s, HtmlStream* stream) 
 	for (const char* p = s; (c = *p); p++) {
         switch (c) {
             case '\\':
-                stream->write((void*)"\\", 2, 1, stream->data);
+                stream->write((void*)"\\\\", 2, 1, stream->data);
                 continue;
             case '\"':
                 stream->write((void*)"\\\"", 2, 1, stream->data);
