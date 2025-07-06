@@ -65,76 +65,139 @@ int main(int argc, char** argv) {
 
 ## スピードテスト
 
-youtube.com からダウンロードされた動画ページのHTML (3.04 MB) を読み取り、`<img>` を検索するスピードテストで、HTMLパースが 25.565ms で完了し、HTMLから `<img>` が 292 見つかり 2.343ms かかりました。
+youtube.com からダウンロードした 3.39 MB の HTML を読み取り、`<img>` を検索するテストに、
 
-<img src="speedtest.png">
+mythml2 は 24.24ms で HTML を構造化し、2.17ms で 282 つの `<img>` を見つけました。
+
+一方、BeautifulSoup4 は 428.74ms で HTML を構造化し、47.16ms で 282 つの `<img>` を見つけました。
+
+myhtml2 は 17 倍以上の性能を持っている。
+
+<img src="speedtestC.png">
+
+<img src="speedtestPython.png">
 
 <br>
 
 こちらがスピードテストのコードです
 
-コンパイルコマンド: `gcc speedtest.c -O3`
+コンパイルコマンド: `gcc -o speedtest speedtest.c -O3`
 
 ```c
 #include "myhtml.h"
 #include <time.h>
 
+// a timeit method that getting function usetime in ms
 double Timeit(void (*func)(void*), void* param) {
-  struct timespec start, end;
-  clock_gettime(CLOCK_MONOTONIC, &start);
-  func(param);
-  clock_gettime(CLOCK_MONOTONIC, &end);
-  return end.tv_sec - start.tv_sec + (end.tv_nsec - start.tv_nsec) / 1.0e9;
+	struct timespec start, end;
+	clock_gettime(CLOCK_MONOTONIC, &start);
+	func(param);
+	clock_gettime(CLOCK_MONOTONIC, &end);
+	return end.tv_sec - start.tv_sec + (end.tv_nsec - start.tv_nsec) / 1.0e6;
 }
 
 
+// -- define test function --
 HtmlObject* doc;
 HtmlArray array;
 
 void TestParse(void* param) {
-  doc = HtmlReadObjectFromStream((HtmlStream*)param);
+	doc = HtmlReadObjectFromStream((HtmlStream*)param);
 }
 
 void TestSelect(void* param) {
-  array = HtmlFindAllObjects(doc, "img", 0);
+	array = HtmlFindAllObjects(doc, "img", 0);
 }
 
+// -- main --
 int main(int argc, char** argv) {
-  // read html file
-  size_t readed, fileSize = 0;
+	// read html file
+    // library have HtmlReadObjectFromFile, but file reading will slow down the speed
+	size_t readed, fileSize = 0;
 
-  HtmlStream stream = HtmlCreateStreamBuffer(4096);
-  FILE* file = fopen("youtube.html", "r");
-  char buffer[4096];
+	HtmlStream stream = HtmlCreateStreamBuffer(4096);
+	FILE* file = fopen("riskroll.html", "r");
+	char buffer[4096];
 
-  while ((readed = fread(buffer, 1, sizeof(buffer), file))) {
-      stream.write(buffer, 1, readed, stream.data);
-      fileSize += readed;
-  }
-  fclose(file);
+	while ((readed = fread(buffer, 1, sizeof(buffer), file))) {
+		stream.write(buffer, 1, readed, stream.data);
+		fileSize += readed;
+	}
+	fclose(file);
 
-  // performance tests
-  double usetime1 = Timeit(TestParse, &stream);
-  double usetime2 = Timeit(TestSelect, NULL);
 
-  // show selected <img> elements
-  for (int i = 0; i < array.length; i++) {
-      printf("  %s\n", HtmlWriteObjectToString(array.values[i]));
-  }
-  printf("%d <img> founded!\n", array.length);
-  putchar('\n');
+	// getting usetime
+	double parseUsetime = Timeit(TestParse, &stream);
+	double selectUsetime = Timeit(TestSelect, NULL);
 
-  // show time taken
-  printf("File size: %ld bytes\n", fileSize);
-  printf("Time taken to read HTML file: %lfs\n", usetime1);
-  printf("Time taken to select <img>: %lfs\n", usetime2);
 
-  // cleanup
-  HtmlDestroyObject(doc);
-  HtmlDestroyArray(&array);
-  HtmlDestroyStream(&stream);
-  return 0;
+	// -- print <img> --
+	for (int i = 0; i < array.length; i++) {
+		printf("	%s\n", HtmlWriteObjectToString(array.values[i]));
+	}
+	putchar('\n');
+
+	// -- print information --
+    double fileSizeDouble = (double)fileSize / 1024 / 1024;
+
+	printf("C myhtml2:\n");
+	printf("  file size: %.2lf MB\n", fileSizeDouble);
+	printf("  <img> count: %d\n", array.length);
+	printf("  parse usetime: %.2lf ms (every %.2lf ms per MB)\n", parseUsetime, parseUsetime / fileSizeDouble);
+	printf("  select <img> usetime: %.2lf ms (every %.2lf us per img)\n", selectUsetime, selectUsetime * 1000 / array.length);
+
+	// -- cleanup --
+	HtmlDestroyObject(doc);
+	HtmlDestroyArray(&array);
+	HtmlDestroyStream(&stream);
+	return 0;
 }
+
+```
+
+<br>
+
+Python BeautifulSoup のスピードテスト
+
+```python
+from bs4 import BeautifulSoup
+from time import time
+
+### read file text ###
+file = open("riskroll.html", "r", encoding="utf-8")
+html = file.read()
+file.close()
+
+### test parse usetime ###
+parseStart = time()
+doc = BeautifulSoup(html)
+parseEnd = time()
+
+
+### test select usetime ###
+selectStart = time()
+select = doc.select("img");
+selectEnd = time()
+
+
+### print <img> ###
+print("All <img>:")
+for tag in select:
+    print("  " + str(tag))
+print()
+
+
+### calculation ###
+filesize = len(html) / 1024 / 1024
+parseUsetime = (parseEnd - parseStart) * 1000
+selectUsetime = (selectEnd - selectStart) * 1000
+
+### print information ###
+print("Python BeautifulSoup4:")
+print("  file size: %.2f MB" % (filesize))
+print("  <img> count: %d" % len(select))
+print("  parse usetime: %.2f ms (every %.2f ms per MB)" % (parseUsetime, parseUsetime / filesize))
+print("  select <img> usetime: %.2f ms (every %.2f us per img)" % (selectUsetime, selectUsetime * 1000 / len(select)))
 ```
 
 ---
@@ -398,6 +461,7 @@ HtmlDestroySelect(select);
 - 属性でオブジェクト検索 ("t.c#i[attrName=attrValue, index]")
 - HTML記号 &amp 処理
 - tidy機能追加、未実装だが beta1.0 で既にあったが。。。
+- libcurl ストリーミングパースの追加 (スレッド)
 
 ---
 
