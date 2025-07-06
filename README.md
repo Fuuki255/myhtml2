@@ -459,7 +459,7 @@ HtmlDestroySelect(select);
 
 - マルチオブジェクト検索 ("patterns, ...")
 - 属性でオブジェクト検索 ("t.c#i[attrName=attrValue, index]")
-- HTML記号 &amp 処理
+- HTML記号 (e.g. &amp) 処理
 - tidy機能追加、未実装だが beta1.0 で既にあったが。。。
 - libcurl ストリーミングパースの追加 (スレッド)
 
